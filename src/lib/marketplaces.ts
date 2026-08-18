@@ -4,7 +4,7 @@ export interface MarketplaceInfo {
   id: MarketplaceId
   name: string
   color: string
-  /** Где взять API-ключи */
+  /** Где взять API-ключи (только чтение) */
   keyHelp: string[]
   keyUrl: string
   /** Какие поля нужны для API */
@@ -19,9 +19,9 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     name: 'Ozon',
     color: '#005BFF',
     keyHelp: [
-      'Зайдите в кабинет продавца seller.ozon.ru',
-      'Настройки → API-ключи',
-      'Создайте ключ: роль «Отчёты и аналитика» (или Admin)',
+      'seller.ozon.ru → Настройки → API-ключи',
+      'Создайте ключ с типом «Admin read only» (только чтение)',
+      'Таким ключом нельзя ничего изменить в кабинете — только читать',
       'Скопируйте Client-Id и Api-Key',
     ],
     keyUrl: 'https://seller.ozon.ru/app/settings/api-keys',
@@ -34,9 +34,9 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     name: 'Wildberries',
     color: '#CB11AB',
     keyHelp: [
-      'Зайдите в кабинет seller.wildberries.ru',
-      'Настройки → Доступ к API',
-      'Создайте токен с доступом «Статистика» и «Аналитика»',
+      'seller.wildberries.ru → Профиль → Интеграции API',
+      'Создайте токен типа «Только чтение» (read-only)',
+      'Отметьте категорию «Статистика» — этого достаточно',
       'Скопируйте токен (показывается один раз)',
     ],
     keyUrl: 'https://seller.wildberries.ru/supplier-settings/access-to-api',
@@ -49,10 +49,10 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     name: 'Яндекс Маркет',
     color: '#FC3F1D',
     keyHelp: [
-      'Зайдите в partner.market.yandex.ru',
-      'Настройки → API-ключи → «Авторизационный токен»',
-      'Создайте токен для API Партнёрского интерфейса',
-      'Скопируйте Api-Key и номер кабинета (campaignId)',
+      'partner.market.yandex.ru → Настройки → API и модули',
+      'Создайте Api-Key с доступом «all-methods:read-only» (просмотр всех данных)',
+      'Такой ключ не может изменять заказы и товары',
+      'Скопируйте Api-Key и CampaignId (идентификатор кабинета там же)',
     ],
     keyUrl: 'https://partner.market.yandex.ru/',
     fields: { clientId: 'CampaignId', apiKey: 'Api-Key' },
@@ -64,9 +64,9 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     name: 'Авито',
     color: '#0AF',
     keyHelp: [
-      'Зайдите в кабинет avito.ru → «Авито Pro» / API для бизнеса',
-      'Создайте приложение на developers.avito.ru',
+      'Кабинет avito.ru → Настройки → Avito API → Регистрация нового приложения',
       'Скопируйте Client ID и Client Secret',
+      'Гранулярного «только чтение» у Авито нет, но наш модуль вызывает только GET-методы заказов',
     ],
     keyUrl: 'https://developers.avito.ru/',
     fields: { clientId: 'Client ID', apiKey: 'Client Secret' },

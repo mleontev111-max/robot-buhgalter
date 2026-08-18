@@ -1,64 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ExternalLink, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
-import type { ApiCredential, AppState, MarketplaceId } from '@/types'
+import { ExternalLink, KeyRound, Loader2, RefreshCw, ServerOff, ShieldCheck } from 'lucide-react'
+import type { ApiCredential, AppState, MarketplaceId, Operation } from '@/types'
 import { MARKETPLACES } from '@/lib/marketplaces'
 import { toast } from 'sonner'
+
+const SERVER = 'http://localhost:8787'
 
 interface Props {
   state: AppState
   setState: (updater: (prev: AppState) => AppState) => void
 }
 
-type TestStatus = 'idle' | 'testing' | 'ok' | 'cors' | 'fail'
+type Status = 'idle' | 'testing' | 'ok' | 'fail'
 
-/** Пробный запрос к API маркетплейса. Из браузера почти всегда упирается в CORS —
- *  честно показываем это пользователю. */
-async function testConnection(mp: MarketplaceId, cred: { clientId: string; apiKey: string }): Promise<TestStatus> {
-  const endpoints: Record<MarketplaceId, { url: string; headers: Record<string, string> }> = {
-    ozon: {
-      url: 'https://api-seller.ozon.ru/v1/roles',
-      headers: { 'Client-Id': cred.clientId, 'Api-Key': cred.apiKey, 'Content-Type': 'application/json' },
-    },
-    wb: {
-      url: 'https://common-api.wildberries.ru/ping',
-      headers: { Authorization: cred.apiKey },
-    },
-    yandex: {
-      url: `https://api.partner.market.yandex.ru/campaigns/${cred.clientId}`,
-      headers: { 'Api-Key': cred.apiKey },
-    },
-    avito: {
-      url: 'https://api.avito.ru/token/',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    },
-  }
-  const ep = endpoints[mp]
-  try {
-    const res =
-      mp === 'avito'
-        ? await fetch(ep.url, {
-            method: 'POST',
-            headers: ep.headers,
-            body: `grant_type=client_credentials&client_id=${encodeURIComponent(cred.clientId)}&client_secret=${encodeURIComponent(cred.apiKey)}`,
-          })
-        : mp === 'ozon'
-          ? await fetch(ep.url, { method: 'POST', headers: ep.headers, body: '{}' })
-          : await fetch(ep.url, { headers: ep.headers })
-    return res.ok ? 'ok' : 'fail'
-  } catch {
-    return 'cors'
-  }
+const firstDayOfMonth = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
+const today = () => new Date().toISOString().slice(0, 10)
 
 export default function Connections({ state, setState }: Props) {
   const [drafts, setDrafts] = useState<Record<string, { clientId: string; apiKey: string }>>({})
-  const [status, setStatus] = useState<Record<string, TestStatus>>({})
+  const [status, setStatus] = useState<Record<string, Status>>({})
+  const [serverUp, setServerUp] = useState<boolean | null>(null)
+  const [dateFrom, setDateFrom] = useState(firstDayOfMonth())
+  const [dateTo, setDateTo] = useState(today())
+  const [syncing, setSyncing] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`${SERVER}/api/health`, { signal: AbortSignal.timeout(2500) })
+      .then((r) => setServerUp(r.ok))
+      .catch(() => setServerUp(false))
+  }, [])
 
   const key = (storeId: string, mp: MarketplaceId) => `${storeId}:${mp}`
   const getCred = (storeId: string, mp: MarketplaceId): ApiCredential | undefined =>
@@ -79,24 +58,77 @@ export default function Connections({ state, setState }: Props) {
         { storeId, marketplace: mp, clientId: d.clientId, apiKey: d.apiKey, updatedAt: new Date().toISOString() },
       ],
     }))
-    toast.success('Ключи сохранены локально')
+    toast.success('Ключи сохранены локально в браузере')
   }
 
   const test = async (storeId: string, mp: MarketplaceId) => {
     const k = key(storeId, mp)
     setStatus((s) => ({ ...s, [k]: 'testing' }))
-    const result = await testConnection(mp, getDraft(storeId, mp))
-    setStatus((s) => ({ ...s, [k]: result }))
-    if (result === 'ok') toast.success('Подключение работает!')
-    else if (result === 'cors')
-      toast.warning('Браузер заблокировал запрос (CORS). Для автосинхронизации нужен серверный модуль.')
-    else toast.error('API ответил ошибкой — проверьте ключи.')
+    try {
+      const res = await fetch(`${SERVER}/api/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marketplace: mp, ...getDraft(storeId, mp) }),
+      })
+      const data = await res.json()
+      if (!data.ok) throw new Error(data.error)
+      setStatus((s) => ({ ...s, [k]: 'ok' }))
+      toast.success('Подключение работает!')
+    } catch (e) {
+      setStatus((s) => ({ ...s, [k]: 'fail' }))
+      toast.error(`Ошибка: ${e instanceof Error ? e.message : 'нет связи с сервером'}`)
+    }
   }
 
-  const statusBadge = (st: TestStatus | undefined, saved?: ApiCredential) => {
-    if (st === 'testing') return <Badge variant="secondary"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Проверка…</Badge>
+  const sync = async (storeId: string, mp: MarketplaceId) => {
+    const k = key(storeId, mp)
+    setSyncing(k)
+    try {
+      const res = await fetch(`${SERVER}/api/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marketplace: mp, ...getDraft(storeId, mp), dateFrom, dateTo }),
+      })
+      const data = await res.json()
+      if (!data.ok) throw new Error(data.error)
+      const ops: Operation[] = (data.operations as Omit<Operation, 'id' | 'storeId' | 'marketplace'>[]).map(
+        (o) => ({
+          ...o,
+          id: Math.random().toString(36).slice(2, 10),
+          storeId,
+          marketplace: mp,
+        }),
+      )
+      // Повторная синхронизация не дублирует данные: старые API-операции
+      // этого магазина/маркетплейса за период заменяются свежими
+      setState((p) => ({
+        ...p,
+        operations: [
+          ...p.operations.filter(
+            (o) =>
+              !(
+                o.storeId === storeId &&
+                o.marketplace === mp &&
+                o.date >= dateFrom &&
+                o.date <= dateTo &&
+                o.note?.startsWith('API:')
+              ),
+          ),
+          ...ops,
+        ],
+      }))
+      toast.success(`Синхронизировано: ${ops.length} дневных сводок за период`)
+    } catch (e) {
+      toast.error(`Синхронизация не удалась: ${e instanceof Error ? e.message : 'ошибка'}`)
+    } finally {
+      setSyncing(null)
+    }
+  }
+
+  const statusBadge = (st: Status | undefined, saved?: ApiCredential) => {
+    if (st === 'testing')
+      return <Badge variant="secondary"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Проверка…</Badge>
     if (st === 'ok') return <Badge className="bg-emerald-600">Подключено</Badge>
-    if (st === 'cors') return <Badge className="bg-amber-500">CORS — нужен сервер</Badge>
     if (st === 'fail') return <Badge variant="destructive">Ошибка</Badge>
     if (saved) return <Badge variant="secondary">Ключи сохранены</Badge>
     return <Badge variant="outline">Не подключено</Badge>
@@ -106,15 +138,43 @@ export default function Connections({ state, setState }: Props) {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Подключения API</h1>
 
-      <Alert className="border-amber-200 bg-amber-50">
-        <ShieldAlert className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-xs text-amber-900">
-          Ключи хранятся только в вашем браузере (localStorage) и никуда не отправляются, кроме
-          самих маркетплейсов. Прямая автосинхронизация из браузера ограничена политикой CORS
-          маркетплейсов — для полноценной автоматики нужен небольшой серверный модуль
-          (следующий этап проекта). Сейчас данные загружаются через импорт отчётов.
-        </AlertDescription>
-      </Alert>
+      {serverUp === false && (
+        <Alert className="border-red-200 bg-red-50">
+          <ServerOff className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-xs text-red-900">
+            Локальный сервер синхронизации не запущен. Откройте терминал в папке проекта и
+            выполните: <code className="rounded bg-red-100 px-1 font-mono">npm run server</code> —
+            после этого обновите страницу. Сервер нужен, потому что браузеру запрещено напрямую
+            обращаться к API маркетплейсов (CORS).
+          </AlertDescription>
+        </Alert>
+      )}
+      {serverUp && (
+        <Alert className="border-emerald-200 bg-emerald-50">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          <AlertDescription className="text-xs text-emerald-900">
+            Сервер синхронизации запущен. Все запросы к маркетплейсам — только на чтение: ключи
+            нигде не сохраняются на сервере и передаются напрямую в API маркетплейса.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card className="bg-white">
+        <CardContent className="flex flex-wrap items-end gap-3 pt-5">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Синхронизировать с</Label>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">по</Label>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          <p className="pb-2 text-xs text-stone-500">
+            Период применяется к кнопкам «Синхронизировать» ниже. Повторная синхронизация за тот же
+            период заменяет данные, а не дублирует их.
+          </p>
+        </CardContent>
+      </Card>
 
       {state.stores.map((store) => (
         <div key={store.id} className="space-y-3">
@@ -138,7 +198,7 @@ export default function Connections({ state, setState }: Props) {
                   <CardContent className="space-y-3">
                     <details className="text-xs text-stone-500">
                       <summary className="cursor-pointer font-medium text-stone-700">
-                        Где взять ключи
+                        Как получить ключ только на чтение
                       </summary>
                       <ol className="mt-2 list-decimal space-y-1 pl-4">
                         {mp.keyHelp.map((h) => (
@@ -177,7 +237,7 @@ export default function Connections({ state, setState }: Props) {
                         placeholder={mp.fields.apiKey}
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         className="bg-emerald-700 hover:bg-emerald-800"
@@ -190,9 +250,23 @@ export default function Connections({ state, setState }: Props) {
                         size="sm"
                         variant="outline"
                         onClick={() => test(store.id, mp.id)}
-                        disabled={!draft.apiKey || status[k] === 'testing'}
+                        disabled={!draft.apiKey || status[k] === 'testing' || !serverUp}
                       >
                         Проверить
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-300 text-emerald-800"
+                        onClick={() => sync(store.id, mp.id)}
+                        disabled={!draft.apiKey || syncing !== null || !serverUp}
+                      >
+                        {syncing === k ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        Синхронизировать
                       </Button>
                     </div>
                   </CardContent>
