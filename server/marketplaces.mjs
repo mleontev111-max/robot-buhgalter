@@ -83,35 +83,44 @@ async function apiFetch(url, { method = 'GET', headers = {}, body, timeoutMs = 6
 async function ozonSync({ clientId, apiKey, dateFrom, dateTo }) {
   const headers = { 'Client-Id': clientId, 'Api-Key': apiKey, 'Content-Type': 'application/json' }
   const bucket = new DayBucket()
-  let page = 1
-  let pageCount = 1
-  while (page <= pageCount && page <= 50) {
-    const data = await apiFetch('https://api-seller.ozon.ru/v3/finance/transaction/list', {
-      method: 'POST',
-      headers,
-      body: {
-        filter: {
-          date: { from: `${dateFrom}T00:00:00.000Z`, to: `${dateTo}T23:59:59.999Z` },
-          operation_type: [],
-          posting_number: '',
-          transaction_type: 'all',
+  // Ozon отдаёт максимум 1 месяц за запрос — идём помесячно
+  const start = new Date(`${dateFrom}T00:00:00Z`)
+  const end = new Date(`${dateTo}T00:00:00Z`)
+  for (let cur = new Date(start); cur <= end; cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1))) {
+    const from = cur > start ? cur : start
+    const monthEnd = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 0))
+    const to = monthEnd < end ? monthEnd : end
+    const iso = (d, t) => `${d.toISOString().slice(0, 10)}T${t}`
+    let page = 1
+    let pageCount = 1
+    while (page <= pageCount && page <= 20) {
+      const data = await apiFetch('https://api-seller.ozon.ru/v3/finance/transaction/list', {
+        method: 'POST',
+        headers,
+        body: {
+          filter: {
+            date: { from: iso(from, '00:00:00.000Z'), to: iso(to, '23:59:59.999Z') },
+            operation_type: [],
+            posting_number: '',
+            transaction_type: 'all',
+          },
+          page,
+          page_size: 1000,
         },
-        page,
-        page_size: 1000,
-      },
-    })
-    const result = data?.result ?? {}
-    pageCount = result.page_count ?? 1
-    for (const op of result.operations ?? []) {
-      const services = (op.services ?? []).reduce((a, s) => a + (s.price ?? 0), 0)
-      bucket.add(op.operation_date, {
-        revenue: op.accruals_for_sale ?? 0,
-        commission: op.sale_commission ?? 0,
-        logistics: (op.delivery_charge ?? 0) + (op.return_delivery_charge ?? 0),
-        otherExpenses: services,
       })
+      const result = data?.result ?? {}
+      pageCount = result.page_count ?? 1
+      for (const op of result.operations ?? []) {
+        const services = (op.services ?? []).reduce((a, s) => a + (s.price ?? 0), 0)
+        bucket.add(op.operation_date, {
+          revenue: op.accruals_for_sale ?? 0,
+          commission: op.sale_commission ?? 0,
+          logistics: (op.delivery_charge ?? 0) + (op.return_delivery_charge ?? 0),
+          otherExpenses: services,
+        })
+      }
+      page++
     }
-    page++
   }
   return bucket.toArray('API: ozon')
 }

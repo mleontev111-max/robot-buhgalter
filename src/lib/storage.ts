@@ -11,7 +11,14 @@ export function loadState(): AppState {
   } catch {
     /* повреждённые данные — начнём заново */
   }
-  return makeDemoState()
+  return {
+    stores: [
+      { id: 'lafka', name: 'Чайная лафка', regime: 'usn6', insurancePremiums: 53658, hasEmployees: false },
+      { id: 'thechai', name: 'the chai', regime: 'usn15', insurancePremiums: 53658, hasEmployees: true },
+    ],
+    operations: [],
+    credentials: [],
+  }
 }
 
 export function saveState(state: AppState) {

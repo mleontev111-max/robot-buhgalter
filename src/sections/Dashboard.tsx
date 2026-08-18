@@ -1,37 +1,48 @@
 import { useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { TrendingUp, Wallet, ReceiptText, Percent } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { TrendingUp, Wallet, ReceiptText, Percent, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import type { AppState } from '@/types'
 import { calcTax, fmtMoney, sumOps, type Period } from '@/lib/tax'
 import { MARKETPLACES } from '@/lib/marketplaces'
 
-function currentPeriod(kind: string): Period {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  if (kind === 'quarter') {
-    const q = Math.floor(m / 3) * 3
+type Mode = 'month' | 'quarter' | 'year'
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+function periodFor(mode: Mode, anchor: Date): Period {
+  const y = anchor.getFullYear()
+  const m = anchor.getMonth()
+  if (mode === 'year')
+    return { from: `${y}-01-01`, to: `${y}-12-31`, label: `${y} год` }
+  if (mode === 'quarter') {
+    const q = Math.floor(m / 3)
     return {
-      from: `${y}-${String(q + 1).padStart(2, '0')}-01`,
-      to: new Date(y, q + 3, 0).toISOString().slice(0, 10),
-      label: `${Math.floor(m / 3) + 1} квартал ${y}`,
+      from: `${y}-${pad(q * 3 + 1)}-01`,
+      to: new Date(y, q * 3 + 3, 0).toISOString().slice(0, 10),
+      label: `${q + 1} квартал ${y}`,
     }
   }
-  if (kind === 'year')
-    return { from: `${y}-01-01`, to: `${y}-12-31`, label: `${y} год` }
   return {
-    from: `${y}-${String(m + 1).padStart(2, '0')}-01`,
+    from: `${y}-${pad(m + 1)}-01`,
     to: new Date(y, m + 1, 0).toISOString().slice(0, 10),
-    label: now.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }),
+    label: anchor.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }),
   }
 }
 
+function shift(mode: Mode, anchor: Date, dir: -1 | 1): Date {
+  const d = new Date(anchor)
+  const step = mode === 'year' ? 12 : mode === 'quarter' ? 3 : 1
+  return new Date(d.getFullYear(), d.getMonth() + step * dir, 1)
+}
+
 export default function Dashboard({ state }: { state: AppState }) {
-  const [periodKind, setPeriodKind] = useState('month')
+  const [mode, setMode] = useState<Mode>('quarter')
+  const [anchor, setAnchor] = useState(() => new Date())
   const [storeFilter, setStoreFilter] = useState('all')
-  const period = useMemo(() => currentPeriod(periodKind), [periodKind])
+  const period = useMemo(() => periodFor(mode, anchor), [mode, anchor])
 
   const ops = useMemo(
     () =>
@@ -76,29 +87,62 @@ export default function Dashboard({ state }: { state: AppState }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Дашборд</h1>
-          <p className="text-sm capitalize text-stone-500">{period.label}</p>
+        <h1 className="text-2xl font-bold">Дашборд</h1>
+        <Select value={storeFilter} onValueChange={setStoreFilter}>
+          <SelectTrigger className="w-44 bg-white"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Оба магазина</SelectItem>
+            {state.stores.map((s) => (
+              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Навигация по периодам */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-white p-2">
+        <div className="flex overflow-hidden rounded-lg border border-stone-200">
+          {(['month', 'quarter', 'year'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                mode === m ? 'bg-emerald-700 text-white' : 'text-stone-600 hover:bg-stone-100'
+              }`}
+            >
+              {m === 'month' ? 'Месяц' : m === 'quarter' ? 'Квартал' : 'Год'}
+            </button>
+          ))}
         </div>
-        <div className="flex gap-2">
-          <Select value={storeFilter} onValueChange={setStoreFilter}>
-            <SelectTrigger className="w-44 bg-white"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Оба магазина</SelectItem>
-              {state.stores.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={periodKind} onValueChange={setPeriodKind}>
-            <SelectTrigger className="w-36 bg-white"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">Месяц</SelectItem>
-              <SelectItem value="quarter">Квартал</SelectItem>
-              <SelectItem value="year">Год</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setAnchor(shift(mode, anchor, -1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="min-w-40 text-center text-sm font-semibold capitalize">{period.label}</span>
+          <Button size="sm" variant="ghost" onClick={() => setAnchor(shift(mode, anchor, 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
+        <Button size="sm" variant="outline" onClick={() => setAnchor(new Date())}>
+          Текущий период
+        </Button>
+        {mode === 'quarter' && (
+          <div className="ml-auto flex gap-1">
+            {[0, 1, 2, 3].map((q) => (
+              <button
+                key={q}
+                onClick={() => setAnchor(new Date(anchor.getFullYear(), q * 3, 1))}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                  Math.floor(anchor.getMonth() / 3) === q
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'text-stone-500 hover:bg-stone-100'
+                }`}
+              >
+                Q{q + 1}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
