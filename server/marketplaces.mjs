@@ -66,7 +66,10 @@ async function apiFetch(url, { method = 'GET', headers = {}, body, timeoutMs = 6
     }
     if (!res.ok) {
       const msg = json?.message || json?.error || json?.errors?.[0]?.message || text.slice(0, 300)
-      throw new Error(`HTTP ${res.status}: ${msg}`)
+      const err = new Error(`HTTP ${res.status}: ${msg}`)
+      err.status = res.status
+      err.retryAfter = Number(res.headers.get('x-ratelimit-retry-after') ?? res.headers.get('retry-after') ?? 0)
+      throw err
     }
     return json
   } finally {
@@ -128,9 +131,20 @@ async function ozonTest({ clientId, apiKey }) {
 }
 
 /* ========================== WILDBERRIES =========================== */
-/* GET /api/v5/supplier/reportDetailByPeriod — детальный отчёт (чтение) */
+/* Основной: GET /api/v5/supplier/reportDetailByPeriod (детальный отчёт).
+   Резервный: GET /api/v1/supplier/sales — если отчёт недоступен по тарифу (429). */
 
 async function wbSync({ apiKey, dateFrom, dateTo }) {
+  try {
+    return await wbSyncByReport({ apiKey, dateFrom, dateTo })
+  } catch (e) {
+    if (e.status !== 429) throw e
+    console.warn('WB reportDetailByPeriod недоступен (429), переключаюсь на /supplier/sales')
+    return wbSyncBySales({ apiKey, dateFrom, dateTo })
+  }
+}
+
+async function wbSyncByReport({ apiKey, dateFrom, dateTo }) {
   const headers = { Authorization: apiKey }
   const bucket = new DayBucket()
   // WB отдаёт максимум ~30 дней за запрос — идём окнами
@@ -142,7 +156,20 @@ async function wbSync({ apiKey, dateFrom, dateTo }) {
       const url =
         `https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod` +
         `?dateFrom=${fmt(from)}&dateTo=${fmt(to)}&rrdid=${rrdid}&limit=100000`
-      const rows = await apiFetch(url, { headers })
+      // WB жёстко ограничивает частоту — при 429 ждём и повторяем
+      let rows
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          rows = await apiFetch(url, { headers })
+          break
+        } catch (e) {
+          if (e.status === 429 && attempt < 1 && (e.retryAfter ?? 9999) <= 90) {
+            await new Promise((r) => setTimeout(r, (e.retryAfter || 20) * 1000))
+            continue
+          }
+          throw e
+        }
+      }
       if (!Array.isArray(rows) || rows.length === 0) break
       for (const r of rows) {
         const oper = r.supplier_oper_name
@@ -161,6 +188,26 @@ async function wbSync({ apiKey, dateFrom, dateTo }) {
     }
   }
   return bucket.toArray('API: wb')
+}
+
+/** Резерв: продажи/возвраты. Комиссия считается приближённо: finishedPrice − forPay. */
+async function wbSyncBySales({ apiKey, dateFrom, dateTo }) {
+  const headers = { Authorization: apiKey }
+  const bucket = new DayBucket()
+  const rows = await apiFetch(
+    `https://statistics-api.wildberries.ru/api/v1/supplier/sales?dateFrom=${dateFrom}T00:00:00&flag=0`,
+    { headers, timeoutMs: 120000 },
+  )
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const day = toDay(r.date)
+    if (!day || day < dateFrom || day > dateTo) continue
+    const revenue = r.finishedPrice ?? r.priceWithDisc ?? 0
+    const commission = Math.max(0, revenue - (r.forPay ?? 0))
+    if (String(r.saleID ?? '').startsWith('R')) bucket.add(day, { revenue: -revenue })
+    else bucket.add(day, { revenue, commission })
+  }
+  const ops = bucket.toArray('API: wb (упрощённо)')
+  return ops
 }
 
 async function wbTest({ apiKey }) {
@@ -184,13 +231,17 @@ async function yandexSync({ clientId, apiKey, dateFrom, dateTo }) {
       method: 'POST',
       headers,
       body: {
-        dateFrom: dateFrom.split('-').reverse().join('.'),
-        dateTo: dateTo.split('-').reverse().join('.'),
+        dateFrom: dateFrom.split('-').reverse().join('-'),
+        dateTo: dateTo.split('-').reverse().join('-'),
       },
     })
     const orders = data?.result?.orders ?? []
     for (const o of orders) {
-      const revenue = (o.items ?? []).reduce((a, it) => a + (it.price ?? 0) * (it.count ?? 1), 0)
+      // Выручка для налога — цена, которую заплатил покупатель (BUYER)
+      const revenue = (o.items ?? []).reduce((a, it) => {
+        const p = (it.prices ?? []).find((x) => x.type === 'BUYER') ?? (it.prices ?? [])[0]
+        return a + (p?.total ?? (p?.costPerItem ?? 0) * (it.count ?? 1))
+      }, 0)
       const commission = (o.commissions ?? []).reduce((a, c) => a + (c.actual ?? 0), 0)
       bucket.add(o.creationDate, { revenue: o.status === 'CANCELLED' ? 0 : revenue, commission })
     }
@@ -227,17 +278,26 @@ async function avitoSync({ clientId, apiKey, dateFrom, dateTo }) {
   const bucket = new DayBucket()
   let offset = 0
   for (let i = 0; i < 50; i++) {
-    const data = await apiFetch(`https://api.avito.ru/order-management/1/orders?limit=100&offset=${offset}`, { headers })
+    const data = await apiFetch(`https://api.avito.ru/order-management/1/orders?limit=20&offset=${offset}`, { headers })
     const orders = data?.orders ?? data?.result?.orders ?? []
     if (orders.length === 0) break
     for (const o of orders) {
       const day = toDay(o.createdAt ?? o.created_at ?? o.date)
-      if (!day || day < dateFrom || day > dateTo) continue
-      const revenue = (o.items ?? []).reduce((a, it) => a + Number(it.price ?? it.cost ?? 0) * (it.count ?? 1), 0) || Number(o.total ?? 0)
-      bucket.add(day, { revenue })
+      if (!day) continue
+      // заказы идут по убыванию даты — дальше периода нет смысла листать
+      if (day < dateFrom) { offset = Infinity; break }
+      if (day > dateTo) continue
+      if (o.status === 'canceled') continue
+      const revenue =
+        Number(o.prices?.price ?? 0) ||
+        (o.items ?? []).reduce((a, it) => a + Number(it.prices?.price ?? 0) * (it.count ?? 1), 0)
+      const commission = Number(o.prices?.commission ?? 0) ||
+        (o.items ?? []).reduce((a, it) => a + Number(it.prices?.commission ?? 0), 0)
+      bucket.add(day, { revenue, commission })
     }
-    if (orders.length < 100) break
-    offset += 100
+    if (!Number.isFinite(offset)) break
+    if (orders.length < 20) break
+    offset += 20
   }
   return bucket.toArray('API: avito')
 }
