@@ -231,31 +231,35 @@ async function yandexSync({ clientId, apiKey, dateFrom, dateTo }) {
   if (!clientId) throw new Error('Укажите CampaignId (идентификатор кабинета)')
   const headers = { 'Api-Key': apiKey, 'Content-Type': 'application/json' }
   const bucket = new DayBucket()
-  let pageToken
-  for (let i = 0; i < 100; i++) {
-    const url =
-      `https://api.partner.market.yandex.ru/v2/campaigns/${clientId}/stats/orders?limit=200` +
-      (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : '')
-    const data = await apiFetch(url, {
-      method: 'POST',
-      headers,
-      body: {
-        dateFrom: dateFrom.split('-').reverse().join('-'),
-        dateTo: dateTo.split('-').reverse().join('-'),
-      },
-    })
-    const orders = data?.result?.orders ?? []
-    for (const o of orders) {
-      // Выручка для налога — цена, которую заплатил покупатель (BUYER)
-      const revenue = (o.items ?? []).reduce((a, it) => {
-        const p = (it.prices ?? []).find((x) => x.type === 'BUYER') ?? (it.prices ?? [])[0]
-        return a + (p?.total ?? (p?.costPerItem ?? 0) * (it.count ?? 1))
-      }, 0)
-      const commission = (o.commissions ?? []).reduce((a, c) => a + (c.actual ?? 0), 0)
-      bucket.add(o.creationDate, { revenue: o.status === 'CANCELLED' ? 0 : revenue, commission })
+  // Яндекс отдаёт максимум ~30 дней за запрос — идём окнами
+  const start = new Date(`${dateFrom}T00:00:00Z`)
+  const end = new Date(`${dateTo}T00:00:00Z`)
+  for (let from = new Date(start); from <= end; from = new Date(from.getTime() + 30 * DAY)) {
+    const to = new Date(Math.min(from.getTime() + 29 * DAY, end.getTime()))
+    const fmt = (d) => d.toISOString().slice(0, 10).split('-').reverse().join('-')
+    let pageToken
+    for (let i = 0; i < 100; i++) {
+      const url =
+        `https://api.partner.market.yandex.ru/v2/campaigns/${clientId}/stats/orders?limit=200` +
+        (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : '')
+      const data = await apiFetch(url, {
+        method: 'POST',
+        headers,
+        body: { dateFrom: fmt(from), dateTo: fmt(to) },
+      })
+      const orders = data?.result?.orders ?? []
+      for (const o of orders) {
+        // Выручка для налога — цена, которую заплатил покупатель (BUYER)
+        const revenue = (o.items ?? []).reduce((a, it) => {
+          const p = (it.prices ?? []).find((x) => x.type === 'BUYER') ?? (it.prices ?? [])[0]
+          return a + (p?.total ?? (p?.costPerItem ?? 0) * (it.count ?? 1))
+        }, 0)
+        const commission = (o.commissions ?? []).reduce((a, c) => a + (c.actual ?? 0), 0)
+        bucket.add(o.creationDate, { revenue: o.status === 'CANCELLED' ? 0 : revenue, commission })
+      }
+      pageToken = data?.result?.paging?.nextPageToken
+      if (!pageToken) break
     }
-    pageToken = data?.result?.paging?.nextPageToken
-    if (!pageToken) break
   }
   return bucket.toArray('API: yandex')
 }

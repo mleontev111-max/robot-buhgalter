@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Leaf, LayoutDashboard, ReceiptText, Calculator, Plug, Settings } from 'lucide-react'
 import { useAppState } from '@/lib/storage'
-import type { Section } from '@/types'
+import type { Section, Operation } from '@/types'
 import Dashboard from '@/sections/Dashboard'
 import Operations from '@/sections/Operations'
 import TaxReport from '@/sections/TaxReport'
@@ -20,6 +20,30 @@ const NAV: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
 export default function Home() {
   const app = useAppState()
   const [section, setSection] = useState<Section>('dashboard')
+
+  // Автоподхват данных, которые обновляет планировщик (например, WB по расписанию):
+  // файл public/wb-sync.json обновляется фоновой задачей, приложение забирает его при открытии
+  useEffect(() => {
+    fetch('wb-sync.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { updatedAt?: string; operations?: Operation[] } | null) => {
+        if (!data?.operations?.length) return
+        const stamp = data.updatedAt ?? ''
+        if (localStorage.getItem('wb-sync-stamp') === stamp) return
+        localStorage.setItem('wb-sync-stamp', stamp)
+        app.setState((p) => ({
+          ...p,
+          operations: [
+            ...data.operations!.filter((n) => !p.operations.some((o) => o.id === n.id)),
+            ...p.operations.filter((o) => !(o.marketplace === 'wb' && o.note?.startsWith('API: wb'))),
+          ],
+        }))
+      })
+      .catch(() => {
+        /* файла пока нет — ничего страшного */
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="flex min-h-screen bg-stone-50 text-stone-900">

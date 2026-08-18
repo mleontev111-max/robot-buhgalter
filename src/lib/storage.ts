@@ -14,7 +14,7 @@ export function loadState(): AppState {
   return {
     stores: [
       { id: 'lafka', name: 'Чайная лафка', regime: 'usn6', insurancePremiums: 53658, hasEmployees: false },
-      { id: 'thechai', name: 'the chai', regime: 'usn15', insurancePremiums: 53658, hasEmployees: true },
+      { id: 'thechai', name: 'the chai', regime: 'usn6', insurancePremiums: 53658, hasEmployees: false },
     ],
     operations: [],
     credentials: [],
