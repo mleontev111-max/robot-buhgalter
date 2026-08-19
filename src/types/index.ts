@@ -14,7 +14,12 @@ export interface Store {
   regime: TaxRegime
   usnIncomeRate?: number
   usnProfitRate?: number
+  npdRate?: number
   vatMode?: VatMode
+  /** Доход предыдущего года для определения обязанности по НДС на УСН. */
+  priorYearRevenue?: number
+  /** Для ПСН — потенциальный доход из патента, используемый в расчёте 1% взноса. */
+  patentPotentialIncome?: number
   insurancePremiums: number
   hasEmployees: boolean
   patentCost?: number
