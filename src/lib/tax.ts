@@ -8,14 +8,17 @@ export const REGIME_LABELS: Record<TaxRegime, string> = {
   osno: 'ОСНО',
 }
 
+/** Федеральные параметры РФ для расчётов за 2026 год. */
 export const TAX_2026 = {
-  insuranceFixed: 57390,
-  insuranceAdditionalThreshold: 300000,
+  insuranceFixed: 57_390,
+  insuranceAdditionalThreshold: 300_000,
   insuranceAdditionalRate: 0.01,
-  insuranceAdditionalMax: 321818,
+  insuranceAdditionalMax: 321_818,
   usnVatExemptionThreshold: 20_000_000,
   usnVat5Upper: 272_500_000,
   usnVat7Upper: 490_500_000,
+  usnVatPriorYear5Upper: 250_000_000,
+  usnVatPriorYear7Upper: 450_000_000,
   vatGeneral: 0.22,
   vatSpecial5: 0.05,
   vatSpecial7: 0.07,
@@ -25,7 +28,12 @@ export const TAX_2026 = {
 } as const
 
 export interface Period { from: string; to: string; label: string }
-export interface InsuranceBreakdown { fixed: number; additional: number; total: number; additionalBase: number }
+export interface InsuranceBreakdown {
+  fixed: number
+  additional: number
+  total: number
+  additionalBase: number
+}
 export interface TaxBreakdown {
   storeId: string
   storeName: string
@@ -63,14 +71,47 @@ export function sumOps(ops: Operation[]) {
   }), { revenue: 0, commission: 0, logistics: 0, ads: 0, otherExpenses: 0 })
 }
 
-export function calcInsurance2026(revenue: number): InsuranceBreakdown {
-  const additionalBase = Math.max(0, revenue - TAX_2026.insuranceAdditionalThreshold)
+/**
+ * Дополнительный 1% в 2026 году зависит от режима:
+ * УСН 6% — все учитываемые доходы;
+ * УСН 15% — доходы минус учитываемые расходы;
+ * ПСН — потенциально возможный доход из патента.
+ *
+ * Важно: фиксированные 57 390 ₽ являются взносом самого ИП и должны
+ * учитываться один раз на налогоплательщика, а не по каждой торговой точке.
+ * Поэтому для ИП, совмещающего ПСН и УСН, окончательное распределение
+ * страховых взносов выполняется на уровне OrganizationTaxSummary.
+ */
+export function calcInsurance2026(additionalBasis: number): InsuranceBreakdown {
+  const base = Math.max(0, additionalBasis)
+  const additionalBase = Math.max(0, base - TAX_2026.insuranceAdditionalThreshold)
   const additional = Math.min(additionalBase * TAX_2026.insuranceAdditionalRate, TAX_2026.insuranceAdditionalMax)
-  return { fixed: TAX_2026.insuranceFixed, additional, total: TAX_2026.insuranceFixed + additional, additionalBase }
+  return {
+    fixed: TAX_2026.insuranceFixed,
+    additional,
+    total: TAX_2026.insuranceFixed + additional,
+    additionalBase,
+  }
 }
 
 function resolveVatMode(store: Store, revenue: number): VatMode {
   if (store.vatMode && store.vatMode !== 'auto') return store.vatMode
+
+  // Для 2026 года сначала учитываем доход предыдущего года. Если его нет,
+  // используем текущий год как ориентир и помечаем расчёт как предварительный.
+  const prior = store.priorYearRevenue
+  if (prior != null) {
+    if (prior <= TAX_2026.usnVatExemptionThreshold) {
+      if (revenue <= TAX_2026.usnVatExemptionThreshold) return 'exempt'
+      if (revenue <= TAX_2026.usnVat5Upper) return 'vat5'
+      if (revenue <= TAX_2026.usnVat7Upper) return 'vat7'
+      return 'vat22'
+    }
+    if (prior <= TAX_2026.usnVatPriorYear5Upper) return 'vat5'
+    if (prior <= TAX_2026.usnVatPriorYear7Upper) return 'vat7'
+    return 'vat22'
+  }
+
   if (revenue <= TAX_2026.usnVatExemptionThreshold) return 'exempt'
   if (revenue <= TAX_2026.usnVat5Upper) return 'vat5'
   if (revenue <= TAX_2026.usnVat7Upper) return 'vat7'
@@ -101,8 +142,19 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
   const marketplaceExpenses = s.commission + s.logistics + s.ads + s.otherExpenses
   const notes: string[] = []
   const revenue = Math.max(0, s.revenue)
-  const autoInsurance = calcInsurance2026(revenue)
-  const insuranceTotal = store.hasEmployees ? Math.max(0, store.insurancePremiums) : store.insurancePremiums > 0 ? store.insurancePremiums : autoInsurance.total
+
+  // Для 1% определяем базу в соответствии с режимом.
+  const insuranceBasis = store.regime === 'usn15'
+    ? Math.max(0, revenue - marketplaceExpenses)
+    : store.regime === 'psn'
+      ? Math.max(0, store.patentPotentialIncome ?? 0)
+      : revenue
+  const autoInsurance = calcInsurance2026(insuranceBasis)
+  const insuranceTotal = store.hasEmployees
+    ? Math.max(0, store.insurancePremiums)
+    : store.insurancePremiums > 0
+      ? store.insurancePremiums
+      : autoInsurance.total
   const insurance: InsuranceBreakdown = store.hasEmployees
     ? { fixed: insuranceTotal, additional: 0, total: insuranceTotal, additionalBase: 0 }
     : { ...autoInsurance, total: insuranceTotal }
@@ -118,7 +170,7 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
 
   switch (store.regime) {
     case 'usn6': {
-      const rate = (store.usnIncomeRate ?? TAX_2026.usnDefaultIncomeRate) / 100
+      const rate = (store.usnIncomeRate ?? TAX_2026.usnDefaultIncomeRate * 100) / 100
       taxGross = revenue * rate
       const limit = store.hasEmployees ? 0.5 : 1
       deduction = Math.min(insurance.total, taxGross * limit)
@@ -126,11 +178,16 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       const vatCalc = calcUsnVat(store, revenue)
       vat = vatCalc.vat; vatRate = vatCalc.rate; vatMode = vatCalc.mode
       notes.push(`УСН «Доходы»: ${store.usnIncomeRate ?? 6}%`)
-      notes.push(store.hasEmployees ? 'При наличии работников налог можно уменьшить страховыми взносами максимум на 50%.' : 'ИП без работников может уменьшить налог на 100% страховых взносов за себя.')
+      notes.push(store.hasEmployees
+        ? 'При наличии работников налог можно уменьшить страховыми взносами максимум на 50%.'
+        : 'ИП без работников может уменьшить налог на 100% страховых взносов за себя.')
       break
     }
     case 'usn15': {
-      const rate = (store.usnProfitRate ?? TAX_2026.usnDefaultProfitRate) / 100
+      const rate = (store.usnProfitRate ?? TAX_2026.usnDefaultProfitRate * 100) / 100
+      // В 2026 году взносы ИП, подлежащие уплате за налоговый период,
+      // могут включаться в расходы по УСН 15%; здесь это отражается отдельно,
+      // чтобы не смешивать их с комиссиями и логистикой маркетплейса.
       taxBase = Math.max(0, revenue - marketplaceExpenses - (store.hasEmployees ? 0 : insurance.total))
       taxGross = taxBase * rate
       minTax = revenue * TAX_2026.usnMinimumTaxRate
@@ -143,9 +200,10 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
     }
     case 'npd': {
       const rate = (store.npdRate ?? 6) / 100
-      taxGross = revenue * rate; taxDue = taxGross
+      taxGross = revenue * rate
+      taxDue = taxGross
       notes.push(`Ставка НПД ${store.npdRate ?? 6}%.`)
-      notes.push('Страховые взносы ИП не уменьшают НПД; для НПД действует отдельный налоговый вычет.')
+      notes.push('Страховые взносы ИП не уменьшают НПД; действует отдельный налоговый вычет НПД.')
       break
     }
     case 'psn': {
@@ -154,8 +212,9 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       const limit = store.hasEmployees ? 0.5 : 1
       deduction = Math.min(insurance.total, patent * limit)
       taxDue = Math.max(0, patent - deduction)
-      taxBase = revenue
+      taxBase = Math.max(0, store.patentPotentialIncome ?? revenue)
       notes.push('ПСН: стоимость патента можно уменьшить на страховые взносы; при наличии работников действует ограничение 50%.')
+      if (!store.patentPotentialIncome) notes.push('Для точного расчёта 1% по ПСН нужен потенциально возможный доход из патента.')
       break
     }
     case 'osno': {
@@ -179,9 +238,13 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
   if ((store.regime === 'usn6' || store.regime === 'usn15') && revenue > TAX_2026.usnVatExemptionThreshold) {
     if (vatRate === 0.05) notes.push('НДС 5%: специальная ставка без вычета входного НДС.')
     if (vatRate === 0.07) notes.push('НДС 7%: специальная ставка без вычета входного НДС.')
-    if (vatRate === 0.22) notes.push('НДС 22%: возможны вычеты входного НДС при соблюдении условий НК РФ.')
+    if (vatRate === 0.22) notes.push('НДС 22%: при выборе общей ставки возможны вычеты входного НДС при соблюдении условий НК РФ.')
   } else if (store.regime === 'usn6' || store.regime === 'usn15') {
     notes.push('При доходе до 20 млн ₽ в 2026 году действует освобождение от НДС по УСН.')
+  }
+
+  if (store.regime === 'psn' && store.patentPotentialIncome == null) {
+    notes.push('Патентные параметры ещё не заполнены: стоимость патента и потенциальный доход нужно взять из выданного патента.')
   }
 
   const totalTaxDue = taxDue + vat
