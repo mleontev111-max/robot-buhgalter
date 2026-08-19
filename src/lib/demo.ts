@@ -15,22 +15,28 @@ const PRODUCTS = [
   'Травяной сбор «Иван-чай», 100 г',
 ]
 
-/** Демо-данные: ~6 месяцев продаж двух чайных магазинов */
+/** Демо-данные: продажи двух чайных магазинов. Параметры налогов рассчитаны автоматически по правилам 2026 года. */
 export function makeDemoState(): AppState {
   const stores = [
     {
       id: 'lafka',
       name: 'Чайная лафка',
       regime: 'usn6' as const,
-      insurancePremiums: 53658,
+      insurancePremiums: 0,
       hasEmployees: false,
+      usnIncomeRate: 6,
+      usnProfitRate: 15,
+      vatMode: 'auto' as const,
     },
     {
       id: 'thechai',
       name: 'the chai',
       regime: 'usn15' as const,
-      insurancePremiums: 53658,
+      insurancePremiums: 0,
       hasEmployees: true,
+      usnIncomeRate: 6,
+      usnProfitRate: 15,
+      vatMode: 'auto' as const,
     },
   ]
 
