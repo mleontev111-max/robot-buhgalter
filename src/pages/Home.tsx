@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Leaf, LayoutDashboard, ReceiptText, Calculator, Plug, Settings } from 'lucide-react'
+import { Leaf, LayoutDashboard, ReceiptText, Calculator, Plug, Settings, Building2 } from 'lucide-react'
 import { useAppState } from '@/lib/storage'
 import type { Section, Operation } from '@/types'
 import Dashboard from '@/sections/Dashboard'
+import Organizations from '@/sections/Organizations'
 import Operations from '@/sections/Operations'
 import TaxReport from '@/sections/TaxReport'
 import Connections from '@/sections/Connections'
@@ -11,6 +12,7 @@ import { cn } from '@/lib/utils'
 
 const NAV: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
+  { id: 'organizations', label: 'Мои организации', icon: Building2 },
   { id: 'operations', label: 'Операции', icon: ReceiptText },
   { id: 'taxes', label: 'Налоги', icon: Calculator },
   { id: 'connections', label: 'Подключения API', icon: Plug },
@@ -21,78 +23,32 @@ export default function Home() {
   const app = useAppState()
   const [section, setSection] = useState<Section>('dashboard')
 
-  // Автоподхват данных, которые обновляет планировщик (например, WB по расписанию):
-  // файл public/wb-sync.json обновляется фоновой задачей, приложение забирает его при открытии
   useEffect(() => {
     fetch('wb-sync.json', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(r => (r.ok ? r.json() : null))
       .then((data: { updatedAt?: string; operations?: Operation[] } | null) => {
         if (!data?.operations?.length) return
         const stamp = data.updatedAt ?? ''
         if (localStorage.getItem('wb-sync-stamp') === stamp) return
         localStorage.setItem('wb-sync-stamp', stamp)
-        app.setState((p) => ({
-          ...p,
-          operations: [
-            ...data.operations!.filter((n) => !p.operations.some((o) => o.id === n.id)),
-            ...p.operations.filter((o) => !(o.marketplace === 'wb' && o.note?.startsWith('API: wb'))),
-          ],
-        }))
-      })
-      .catch(() => {
-        /* файла пока нет — ничего страшного */
-      })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        app.setState(p => ({ ...p, operations: [...data.operations!.filter(n => !p.operations.some(o => o.id === n.id)), ...p.operations.filter(o => !(o.marketplace === 'wb' && o.note?.startsWith('API: wb')))] }))
+      }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return (
-    <div className="flex min-h-screen bg-stone-50 text-stone-900">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-stone-200 bg-white">
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-700 text-white">
-            <Leaf className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-sm font-bold leading-tight">Робот-бухгалтер</div>
-            <div className="text-xs text-stone-500">налоги маркетплейсов</div>
-          </div>
-        </div>
-        <nav className="flex-1 space-y-1 px-3">
-          {NAV.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setSection(id)}
-              className={cn(
-                'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                section === id
-                  ? 'bg-emerald-50 text-emerald-800'
-                  : 'text-stone-600 hover:bg-stone-100',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="space-y-1 border-t border-stone-200 px-5 py-4">
-          {app.state.stores.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 text-xs text-stone-500">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              {s.name}
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <main className="min-w-0 flex-1 p-6 lg:p-8">
-        {section === 'dashboard' && <Dashboard state={app.state} />}
-        {section === 'operations' && <Operations state={app.state} setState={app.setState} />}
-        {section === 'taxes' && <TaxReport state={app.state} />}
-        {section === 'connections' && <Connections state={app.state} setState={app.setState} />}
-        {section === 'settings' && (
-          <SettingsSection state={app.state} setState={app.setState} resetToDemo={app.resetToDemo} clearAll={app.clearAll} />
-        )}
-      </main>
-    </div>
-  )
+  return <div className="flex min-h-screen bg-stone-50 text-stone-900">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-stone-200 bg-white">
+      <div className="flex items-center gap-2.5 px-5 py-5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-700 text-white"><Leaf className="h-5 w-5"/></div><div><div className="text-sm font-bold leading-tight">Робот-бухгалтер</div><div className="text-xs text-stone-500">налоги маркетплейсов</div></div></div>
+      <nav className="flex-1 space-y-1 px-3">{NAV.map(({id,label,icon:Icon})=><button key={id} onClick={()=>setSection(id)} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',section===id?'bg-emerald-50 text-emerald-800':'text-stone-600 hover:bg-stone-100')}><Icon className="h-4 w-4"/>{label}</button>)}</nav>
+      <div className="space-y-1 border-t border-stone-200 px-5 py-4">{(app.state.organizations ?? []).map(o=><div key={o.id} className="flex items-center gap-2 text-xs text-stone-500"><span className="h-2 w-2 rounded-full bg-emerald-500"/>{o.name}</div>)}</div>
+    </aside>
+    <main className="min-w-0 flex-1 p-6 lg:p-8">
+      {section==='dashboard' && <Dashboard state={app.state}/>} 
+      {section==='organizations' && <Organizations state={app.state} setState={app.setState}/>} 
+      {section==='operations' && <Operations state={app.state} setState={app.setState}/>} 
+      {section==='taxes' && <TaxReport state={app.state}/>} 
+      {section==='connections' && <Connections state={app.state} setState={app.setState}/>} 
+      {section==='settings' && <SettingsSection state={app.state} setState={app.setState} resetToDemo={app.resetToDemo} clearAll={app.clearAll}/>} 
+    </main>
+  </div>
 }
