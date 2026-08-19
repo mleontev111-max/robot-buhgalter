@@ -13,8 +13,8 @@ export function loadState(): AppState {
   }
   return {
     stores: [
-      { id: 'lafka', name: 'Чайная лафка', regime: 'usn6', insurancePremiums: 53658, hasEmployees: false },
-      { id: 'thechai', name: 'the chai', regime: 'usn6', insurancePremiums: 53658, hasEmployees: false },
+      { id: 'lafka', name: 'Чайная лафка', regime: 'usn6', insurancePremiums: 0, hasEmployees: false, usnIncomeRate: 6, usnProfitRate: 15, vatMode: 'auto' },
+      { id: 'thechai', name: 'the chai', regime: 'usn6', insurancePremiums: 0, hasEmployees: false, usnIncomeRate: 6, usnProfitRate: 15, vatMode: 'auto' },
     ],
     operations: [],
     credentials: [],
@@ -38,12 +38,7 @@ export function useAppState() {
 
   const resetToDemo = useCallback(() => setStateRaw(makeDemoState()), [])
   const clearAll = useCallback(
-    () =>
-      setStateRaw({
-        stores: [],
-        operations: [],
-        credentials: [],
-      }),
+    () => setStateRaw({ stores: [], operations: [], credentials: [] }),
     [],
   )
 
