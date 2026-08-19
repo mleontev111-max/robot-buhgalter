@@ -24,19 +24,8 @@ export const TAX_2026 = {
   usnMinimumTaxRate: 0.01,
 } as const
 
-export interface Period {
-  from: string
-  to: string
-  label: string
-}
-
-export interface InsuranceBreakdown {
-  fixed: number
-  additional: number
-  total: number
-  additionalBase: number
-}
-
+export interface Period { from: string; to: string; label: string }
+export interface InsuranceBreakdown { fixed: number; additional: number; total: number; additionalBase: number }
 export interface TaxBreakdown {
   storeId: string
   storeName: string
@@ -51,9 +40,7 @@ export interface TaxBreakdown {
   taxBase: number
   taxGross: number
   deduction: number
-  /** Основной налог режима без НДС. Именно эта сумма используется для авансов УСН. */
   taxDue: number
-  /** Общая налоговая нагрузка по модели, включая НДС. */
   totalTaxDue: number
   minTax?: number
   effectiveRate: number
@@ -67,31 +54,19 @@ export interface TaxBreakdown {
 export const inPeriod = (op: Operation, p: Period) => op.date >= p.from && op.date <= p.to
 
 export function sumOps(ops: Operation[]) {
-  return ops.reduce(
-    (acc, o) => ({
-      revenue: acc.revenue + o.revenue,
-      commission: acc.commission + o.commission,
-      logistics: acc.logistics + o.logistics,
-      ads: acc.ads + o.ads,
-      otherExpenses: acc.otherExpenses + o.otherExpenses,
-    }),
-    { revenue: 0, commission: 0, logistics: 0, ads: 0, otherExpenses: 0 },
-  )
+  return ops.reduce((acc, o) => ({
+    revenue: acc.revenue + o.revenue,
+    commission: acc.commission + o.commission,
+    logistics: acc.logistics + o.logistics,
+    ads: acc.ads + o.ads,
+    otherExpenses: acc.otherExpenses + o.otherExpenses,
+  }), { revenue: 0, commission: 0, logistics: 0, ads: 0, otherExpenses: 0 })
 }
 
-/** Страховые взносы ИП «за себя» по правилам 2026 года. */
 export function calcInsurance2026(revenue: number): InsuranceBreakdown {
   const additionalBase = Math.max(0, revenue - TAX_2026.insuranceAdditionalThreshold)
-  const additional = Math.min(
-    additionalBase * TAX_2026.insuranceAdditionalRate,
-    TAX_2026.insuranceAdditionalMax,
-  )
-  return {
-    fixed: TAX_2026.insuranceFixed,
-    additional,
-    total: TAX_2026.insuranceFixed + additional,
-    additionalBase,
-  }
+  const additional = Math.min(additionalBase * TAX_2026.insuranceAdditionalRate, TAX_2026.insuranceAdditionalMax)
+  return { fixed: TAX_2026.insuranceFixed, additional, total: TAX_2026.insuranceFixed + additional, additionalBase }
 }
 
 function resolveVatMode(store: Store, revenue: number): VatMode {
@@ -102,16 +77,23 @@ function resolveVatMode(store: Store, revenue: number): VatMode {
   return 'vat22'
 }
 
-/** НДС при УСН. Для 5%/7%/22% сумма реализации считается включающей НДС. */
 export function calcUsnVat(store: Store, revenue: number) {
   const mode = resolveVatMode(store, revenue)
-  if (store.regime !== 'usn6' && store.regime !== 'usn15') {
-    return { mode: 'exempt' as VatMode, rate: 0, vat: 0 }
-  }
+  if (store.regime !== 'usn6' && store.regime !== 'usn15') return { mode: 'exempt' as VatMode, rate: 0, vat: 0 }
   if (mode === 'exempt') return { mode, rate: 0, vat: 0 }
   if (mode === 'vat5') return { mode, rate: 0.05, vat: revenue * 0.05 / 1.05 }
   if (mode === 'vat7') return { mode, rate: 0.07, vat: revenue * 0.07 / 1.07 }
   return { mode: 'vat22' as VatMode, rate: 0.22, vat: revenue * 0.22 / 1.22 }
+}
+
+/** Прогрессивный НДФЛ 2026 для предпринимательского дохода ИП на ОСНО. */
+function calcIpNdfl2026(base: number) {
+  const b = Math.max(0, base)
+  if (b <= 2_400_000) return b * 0.13
+  if (b <= 5_000_000) return 312_000 + (b - 2_400_000) * 0.15
+  if (b <= 20_000_000) return 702_000 + (b - 5_000_000) * 0.18
+  if (b <= 50_000_000) return 3_402_000 + (b - 20_000_000) * 0.20
+  return 9_402_000 + (b - 50_000_000) * 0.22
 }
 
 export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
@@ -119,13 +101,8 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
   const marketplaceExpenses = s.commission + s.logistics + s.ads + s.otherExpenses
   const notes: string[] = []
   const revenue = Math.max(0, s.revenue)
-
   const autoInsurance = calcInsurance2026(revenue)
-  const insuranceTotal = store.hasEmployees
-    ? Math.max(0, store.insurancePremiums)
-    : store.insurancePremiums > 0
-      ? store.insurancePremiums
-      : autoInsurance.total
+  const insuranceTotal = store.hasEmployees ? Math.max(0, store.insurancePremiums) : store.insurancePremiums > 0 ? store.insurancePremiums : autoInsurance.total
   const insurance: InsuranceBreakdown = store.hasEmployees
     ? { fixed: insuranceTotal, additional: 0, total: insuranceTotal, additionalBase: 0 }
     : { ...autoInsurance, total: insuranceTotal }
@@ -147,36 +124,26 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       deduction = Math.min(insurance.total, taxGross * limit)
       taxDue = Math.max(0, taxGross - deduction)
       const vatCalc = calcUsnVat(store, revenue)
-      vat = vatCalc.vat
-      vatRate = vatCalc.rate
-      vatMode = vatCalc.mode
+      vat = vatCalc.vat; vatRate = vatCalc.rate; vatMode = vatCalc.mode
       notes.push(`УСН «Доходы»: ${store.usnIncomeRate ?? 6}%`)
-      notes.push(
-        store.hasEmployees
-          ? 'При наличии работников налог можно уменьшить страховыми взносами максимум на 50%.'
-          : 'ИП без работников может уменьшить налог на 100% страховых взносов за себя.',
-      )
+      notes.push(store.hasEmployees ? 'При наличии работников налог можно уменьшить страховыми взносами максимум на 50%.' : 'ИП без работников может уменьшить налог на 100% страховых взносов за себя.')
       break
     }
     case 'usn15': {
       const rate = (store.usnProfitRate ?? TAX_2026.usnDefaultProfitRate) / 100
-      // Взносы ИП за себя учитываются в расходах по УСН «Доходы − расходы».
       taxBase = Math.max(0, revenue - marketplaceExpenses - (store.hasEmployees ? 0 : insurance.total))
       taxGross = taxBase * rate
       minTax = revenue * TAX_2026.usnMinimumTaxRate
       taxDue = Math.max(taxGross, revenue > 0 ? minTax : 0)
       const vatCalc = calcUsnVat(store, revenue)
-      vat = vatCalc.vat
-      vatRate = vatCalc.rate
-      vatMode = vatCalc.mode
+      vat = vatCalc.vat; vatRate = vatCalc.rate; vatMode = vatCalc.mode
       if (taxDue === minTax && minTax > taxGross) notes.push('Применён минимальный налог 1% от доходов.')
       notes.push(`УСН «Доходы − расходы»: ${store.usnProfitRate ?? 15}%`)
       break
     }
     case 'npd': {
       const rate = (store.npdRate ?? 6) / 100
-      taxGross = revenue * rate
-      taxDue = taxGross
+      taxGross = revenue * rate; taxDue = taxGross
       notes.push(`Ставка НПД ${store.npdRate ?? 6}%.`)
       notes.push('Страховые взносы ИП не уменьшают НПД; для НПД действует отдельный налоговый вычет.')
       break
@@ -192,13 +159,19 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       break
     }
     case 'osno': {
-      taxBase = Math.max(0, revenue - marketplaceExpenses)
-      const profitTax = taxBase * 0.25
+      taxBase = Math.max(0, revenue - marketplaceExpenses - (store.legalForm === 'ip' || !store.legalForm ? insurance.total : 0))
+      if (store.legalForm === 'ooo') {
+        taxDue = taxBase * 0.25
+        taxGross = taxDue
+        notes.push('ОСНО для ООО: налог на прибыль 25% в 2026 году.')
+      } else {
+        taxDue = calcIpNdfl2026(taxBase)
+        taxGross = taxDue
+        notes.push('ОСНО для ИП: НДФЛ с предпринимательского дохода по прогрессивной шкале 13–22% в 2026 году.')
+      }
       vat = revenue * 0.22 / 1.22
       vatRate = 0.22
-      taxGross = profitTax + vat
-      taxDue = profitTax
-      notes.push('ОСНО: в базовой модели 2026 года используется налог на прибыль 25% и НДС 22%; входной НДС пока не моделируется.')
+      notes.push('НДС 22%; входной НДС пока не моделируется.')
       break
     }
   }
@@ -213,28 +186,11 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
 
   const totalTaxDue = taxDue + vat
   return {
-    storeId: store.id,
-    storeName: store.name,
-    regime: store.regime,
-    regimeLabel: REGIME_LABELS[store.regime],
-    revenue,
-    expenses: marketplaceExpenses,
-    commission: s.commission,
-    logistics: s.logistics,
-    ads: s.ads,
-    otherExpenses: s.otherExpenses,
-    taxBase,
-    taxGross,
-    deduction,
-    taxDue,
-    totalTaxDue,
-    minTax,
+    storeId: store.id, storeName: store.name, regime: store.regime, regimeLabel: REGIME_LABELS[store.regime],
+    revenue, expenses: marketplaceExpenses, commission: s.commission, logistics: s.logistics, ads: s.ads, otherExpenses: s.otherExpenses,
+    taxBase, taxGross, deduction, taxDue, totalTaxDue, minTax,
     effectiveRate: revenue > 0 ? (totalTaxDue / revenue) * 100 : 0,
-    insurance,
-    vat,
-    vatRate,
-    vatMode,
-    notes,
+    insurance, vat, vatRate, vatMode, notes,
   }
 }
 
@@ -255,10 +211,5 @@ export function quarterlyAdvances(store: Store, ops: Operation[], year: number) 
   })
 }
 
-export const fmtMoney = (n: number) =>
-  new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(n)) + ' ₽'
-
-export const fmtDate = (iso: string) => {
-  const [y, m, d] = iso.split('-')
-  return `${d}.${m}.${y}`
-}
+export const fmtMoney = (n: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(n)) + ' ₽'
+export const fmtDate = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}` }
