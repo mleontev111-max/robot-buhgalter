@@ -4,10 +4,28 @@ import { makeDemoState } from '@/lib/demo'
 
 const KEY = 'robot-buhgalter-v1'
 
+function normalizeState(data: AppState): AppState {
+  return {
+    ...data,
+    stores: (data.stores ?? []).map((store) => ({
+      ...store,
+      // Старое значение 53 658 ₽ было параметром 2025 года.
+      // Для 2026 года 0 означает автоматический расчёт 57 390 ₽ + 1%.
+      insurancePremiums: store.insurancePremiums === 53658 ? 0 : (store.insurancePremiums ?? 0),
+      usnIncomeRate: store.usnIncomeRate ?? 6,
+      usnProfitRate: store.usnProfitRate ?? 15,
+      vatMode: store.vatMode ?? 'auto',
+      hasEmployees: Boolean(store.hasEmployees),
+    })),
+    operations: data.operations ?? [],
+    credentials: data.credentials ?? [],
+  }
+}
+
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as AppState
+    if (raw) return normalizeState(JSON.parse(raw) as AppState)
   } catch {
     /* повреждённые данные — начнём заново */
   }
@@ -37,10 +55,7 @@ export function useAppState() {
   }, [])
 
   const resetToDemo = useCallback(() => setStateRaw(makeDemoState()), [])
-  const clearAll = useCallback(
-    () => setStateRaw({ stores: [], operations: [], credentials: [] }),
-    [],
-  )
+  const clearAll = useCallback(() => setStateRaw({ stores: [], operations: [], credentials: [] }), [])
 
   return { state, setState, resetToDemo, clearAll }
 }
