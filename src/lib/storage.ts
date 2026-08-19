@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppState, Store } from '@/types'
 import { makeDemoState } from '@/lib/demo'
 
-const KEY = 'robot-buhgalter-v2'
+const KEY = 'robot-buhgalter-v3'
 
 /**
- * Миграция старой модели Store[] в новую модель:
+ * Миграция старой модели Store[] в доменную модель:
  * User -> Organization -> TaxRegistration -> BusinessUnit -> SalesChannel.
- * Старый UI продолжает работать через stores[], пока мы постепенно переводим
- * экраны на доменную модель.
+ * Старый UI продолжает работать через stores[], пока экраны постепенно
+ * переводятся на доменную модель.
  */
 function migrateStores(stores: Store[]) {
   const organizations = stores.map((store) => ({
@@ -31,7 +31,7 @@ function migrateStores(stores: Store[]) {
     hasEmployees: Boolean(store.hasEmployees),
     employeesCount: store.hasEmployees ? undefined : 0,
     patent: store.regime === 'psn'
-      ? { validFrom: '2026-01-01', validTo: '2026-12-31', cost: store.patentCost ?? 0, paymentSchedule: 'single' as const }
+      ? { validFrom: '2026-01-01', validTo: '2026-12-31', cost: store.patentCost ?? 0, paymentSchedule: 'quarterly' as const }
       : undefined,
   }))
 
@@ -74,6 +74,7 @@ function normalizeState(data: AppState): AppState {
     insurancePremiums: store.insurancePremiums === 53658 ? 0 : (store.insurancePremiums ?? 0),
     usnIncomeRate: store.usnIncomeRate ?? 6,
     usnProfitRate: store.usnProfitRate ?? 15,
+    npdRate: store.npdRate ?? 6,
     vatMode: store.vatMode ?? 'auto',
     hasEmployees: Boolean(store.hasEmployees),
   }))
@@ -110,25 +111,20 @@ function normalizeState(data: AppState): AppState {
     }),
     credentials: data.credentials ?? [],
     ...migrated,
-    schemaVersion: 2,
+    accessGrants: data.accessGrants ?? [],
+    subscriptions: data.subscriptions ?? [],
+    schemaVersion: 3,
   }
 }
 
 export function loadState(): AppState {
   try {
-    const raw = localStorage.getItem(KEY) ?? localStorage.getItem('robot-buhgalter-v1')
+    const raw = localStorage.getItem(KEY)
     if (raw) return normalizeState(JSON.parse(raw) as AppState)
   } catch {
-    /* повреждённые данные — начнём заново */
+    /* повреждённые данные — используем демо-контур */
   }
-  return normalizeState({
-    stores: [
-      { id: 'lafka', name: 'Чайная лафка', legalForm: 'ip', regime: 'usn6', insurancePremiums: 0, hasEmployees: false, usnIncomeRate: 6, usnProfitRate: 15, vatMode: 'auto' },
-      { id: 'thechai', name: 'the chai', legalForm: 'ip', regime: 'usn6', insurancePremiums: 0, hasEmployees: false, usnIncomeRate: 6, usnProfitRate: 15, vatMode: 'auto' },
-    ],
-    operations: [],
-    credentials: [],
-  })
+  return normalizeState(makeDemoState())
 }
 
 export function saveState(state: AppState) { localStorage.setItem(KEY, JSON.stringify(state)) }
