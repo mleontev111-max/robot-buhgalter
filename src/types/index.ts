@@ -41,7 +41,14 @@ export interface Operation {
   note?: string
 }
 
+/**
+ * Одно подключение = один кабинет/аккаунт внешнего источника.
+ * Например, два Ozon Client-Id одного ИП хранятся как два ApiCredential
+ * с одинаковыми storeId+marketplace, но разными id/channelId.
+ */
 export interface ApiCredential {
+  id?: string
+  name?: string
   storeId: string
   marketplace: MarketplaceId
   clientId: string
@@ -49,6 +56,7 @@ export interface ApiCredential {
   updatedAt: string
   organizationId?: string
   channelId?: string
+  lastSyncAt?: string
 }
 
 export type TaxPaymentKind = 'usn' | 'patent' | 'insurance_fixed' | 'insurance_1pct' | 'other'
@@ -58,7 +66,6 @@ export interface TaxPayment {
   kind: TaxPaymentKind
   amount: number
   paidAt: string
-  /** Идентификатор обязательства из налогового календаря, если платеж относится к нему. */
   obligationId?: string
   note?: string
   source?: 'manual' | 'bank' | 'ens'
