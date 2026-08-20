@@ -19,6 +19,10 @@ const PATENT_2026 = {
   potentialIncome: 2_443_350,
   validFrom: '2026-01-01',
   validTo: '2026-12-31',
+  payments: [
+    { dueDate: '2026-04-01', amount: 48_867, share: 'one_third' as const },
+    { dueDate: '2026-12-28', amount: 97_734, share: 'two_thirds' as const },
+  ],
 } as const
 
 export function makeDemoState(): AppState {
@@ -34,18 +38,19 @@ export function makeDemoState(): AppState {
     { id: 'org-mikhail', ownerUserId: 'local-owner', legalForm: 'ip' as const, name: 'ИП Леонтьев Михаил Александрович', status: 'active' as const, createdAt: now },
   ]
 
+  const patentProfile = {
+    validFrom: PATENT_2026.validFrom,
+    validTo: PATENT_2026.validTo,
+    cost: PATENT_2026.cost,
+    potentialIncome: PATENT_2026.potentialIncome,
+    paymentSchedule: 'installments' as const,
+    payments: PATENT_2026.payments.map((p) => ({ ...p })),
+  }
+
   const taxRegistrations = [
-    {
-      id: 'tax-olga-psn', organizationId: 'org-olga', regime: 'psn' as const,
-      validFrom: PATENT_2026.validFrom, vatMode: 'exempt' as const, hasEmployees: false, employeesCount: 0,
-      patent: { validFrom: PATENT_2026.validFrom, validTo: PATENT_2026.validTo, cost: PATENT_2026.cost, potentialIncome: PATENT_2026.potentialIncome, paymentSchedule: 'annual' as const },
-    },
+    { id: 'tax-olga-psn', organizationId: 'org-olga', regime: 'psn' as const, validFrom: PATENT_2026.validFrom, vatMode: 'exempt' as const, hasEmployees: false, employeesCount: 0, patent: { ...patentProfile } },
     { id: 'tax-olga-usn', organizationId: 'org-olga', regime: 'usn6' as const, validFrom: '2026-01-01', usnIncomeRate: 6, vatMode: 'auto' as const, hasEmployees: false, employeesCount: 0 },
-    {
-      id: 'tax-mikhail-psn', organizationId: 'org-mikhail', regime: 'psn' as const,
-      validFrom: PATENT_2026.validFrom, vatMode: 'exempt' as const, hasEmployees: false, employeesCount: 0,
-      patent: { validFrom: PATENT_2026.validFrom, validTo: PATENT_2026.validTo, cost: PATENT_2026.cost, potentialIncome: PATENT_2026.potentialIncome, paymentSchedule: 'annual' as const },
-    },
+    { id: 'tax-mikhail-psn', organizationId: 'org-mikhail', regime: 'psn' as const, validFrom: PATENT_2026.validFrom, vatMode: 'exempt' as const, hasEmployees: false, employeesCount: 0, patent: { ...patentProfile } },
     { id: 'tax-mikhail-usn', organizationId: 'org-mikhail', regime: 'usn6' as const, validFrom: '2026-01-01', usnIncomeRate: 6, vatMode: 'auto' as const, hasEmployees: false, employeesCount: 0 },
   ]
 
