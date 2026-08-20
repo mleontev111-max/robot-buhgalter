@@ -1,5 +1,5 @@
 import type { AppState } from '@/types'
-import { calcTax, fmtMoney, quarterlyAdvances } from './tax'
+import { calcTax, fmtMoney } from './tax'
 
 export type ObligationKind = 'notification' | 'tax' | 'patent' | 'insurance' | 'declaration'
 export type ObligationStatus = 'overdue' | 'soon' | 'upcoming' | 'future'
@@ -32,11 +32,8 @@ export function obligationStatus(dueDate: string, today = toIso(new Date())): Ob
   return 'future'
 }
 
-const add = (
-  rows: TaxObligation[],
-  item: Omit<TaxObligation, 'status'>,
-  today: string,
-) => rows.push({ ...item, status: obligationStatus(item.dueDate, today) })
+const add = (rows: TaxObligation[], item: Omit<TaxObligation, 'status'>, today: string) =>
+  rows.push({ ...item, status: obligationStatus(item.dueDate, today) })
 
 /**
  * Календарь обязательств для ИП за 2026 год.
