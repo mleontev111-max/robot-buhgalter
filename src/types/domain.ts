@@ -24,7 +24,6 @@ export interface UserAccount {
   status: 'active' | 'blocked'
 }
 
-/** Юридическое лицо/ИП, которое является налогоплательщиком. */
 export interface Organization {
   id: string
   ownerUserId: string
@@ -38,10 +37,6 @@ export interface Organization {
   createdAt: string
 }
 
-/**
- * Налоговая регистрация действует во времени. Один ИП может одновременно
- * иметь, например, ПСН для розницы и УСН для маркетплейсов.
- */
 export interface TaxRegistration {
   id: string
   organizationId: string
@@ -57,6 +52,12 @@ export interface TaxRegistration {
   notes?: string
 }
 
+export interface PatentPayment {
+  dueDate: string
+  amount: number
+  share?: 'one_third' | 'two_thirds' | 'full'
+}
+
 export interface PatentProfile {
   patentNumber?: string
   activityCode?: string
@@ -66,10 +67,11 @@ export interface PatentProfile {
   validTo: string
   potentialIncome?: number
   cost: number
-  paymentSchedule: 'single' | 'quarterly'
+  /** quarterly оставлен для совместимости со старыми локальными данными. */
+  paymentSchedule: 'single' | 'installments' | 'quarterly'
+  payments?: PatentPayment[]
 }
 
-/** Торговая точка/направление внутри конкретного ИП или ООО. */
 export interface BusinessUnit {
   id: string
   organizationId: string
@@ -80,7 +82,6 @@ export interface BusinessUnit {
   active: boolean
 }
 
-/** Ozon/WB/Яндекс, сайт, касса, банк и т.д. */
 export interface SalesChannel {
   id: string
   organizationId: string
@@ -111,5 +112,4 @@ export interface Subscription {
   currentPeriodEnd: string
 }
 
-/** Версия локальной схемы. Нужна для безопасной миграции на серверную БД. */
-export const DOMAIN_SCHEMA_VERSION = 2
+export const DOMAIN_SCHEMA_VERSION = 3
