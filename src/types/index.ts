@@ -41,11 +41,16 @@ export interface Operation {
   note?: string
 }
 
-/**
- * Одно подключение = один кабинет/аккаунт внешнего источника.
- * Например, два Ozon Client-Id одного ИП хранятся как два ApiCredential
- * с одинаковыми storeId+marketplace, но разными id/channelId.
- */
+export interface SyncCoverage {
+  dateFrom: string
+  dateTo: string
+  operationCount: number
+  sourceMode?: 'financial' | 'orders' | 'fallback'
+  complete?: boolean
+  warning?: string
+}
+
+/** Одно подключение = один отдельный внешний кабинет/аккаунт. */
 export interface ApiCredential {
   id?: string
   name?: string
@@ -57,6 +62,7 @@ export interface ApiCredential {
   organizationId?: string
   channelId?: string
   lastSyncAt?: string
+  lastSyncCoverage?: SyncCoverage
 }
 
 export type TaxPaymentKind = 'usn' | 'patent' | 'insurance_fixed' | 'insurance_1pct' | 'other'
@@ -88,19 +94,4 @@ export interface AppState {
   schemaVersion?: number
 }
 
-export type {
-  AccessGrant,
-  BusinessUnit,
-  BusinessUnitType,
-  DataSourceType,
-  Organization,
-  OrganizationStatus,
-  PatentProfile,
-  SalesChannel,
-  SalesChannelType,
-  Subscription,
-  SubscriptionPlan,
-  TaxRegistration,
-  UserAccount,
-  UserRole,
-} from './domain'
+export type { AccessGrant, BusinessUnit, BusinessUnitType, DataSourceType, Organization, OrganizationStatus, PatentProfile, SalesChannel, SalesChannelType, Subscription, SubscriptionPlan, TaxRegistration, UserAccount, UserRole } from './domain'
