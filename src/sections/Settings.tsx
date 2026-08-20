@@ -25,8 +25,56 @@ export default function SettingsSection({ state, setState, resetToDemo, clearAll
     if (!confirm('Удалить магазин вместе со всеми его операциями?')) return
     setState((p) => ({ ...p, stores: p.stores.filter((s) => s.id !== id), operations: p.operations.filter((o) => o.storeId !== id), credentials: p.credentials.filter((c) => c.storeId !== id) }))
   }
-  const exportJson = () => { const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `robot-buhgalter-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click() }
-  const importJson = async (file: File) => { try { const data = JSON.parse(await file.text()) as AppState; if (!Array.isArray(data.stores) || !Array.isArray(data.operations)) throw new Error(); setState(() => ({ stores: data.stores, operations: data.operations, credentials: data.credentials ?? [] })); toast.success('Данные восстановлены из резервной копии') } catch { toast.error('Файл не похож на резервную копию Робота-бухгалтера') } }
+
+  const downloadJson = (data: unknown, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportJson = () => downloadJson(state, `robot-buhgalter-backup-${new Date().toISOString().slice(0, 10)}.json`)
+
+  // Экспорт для бухгалтерской проверки намеренно исключает API-ключи и другие credentials.
+  // В файл попадают налоговая структура и операции, необходимые для воспроизводимого расчёта.
+  const exportForReview = () => {
+    const exportedAt = new Date().toISOString()
+    const payload = {
+      format: 'robot-buhgalter-accounting-review',
+      version: 1,
+      exportedAt,
+      schemaVersion: state.schemaVersion ?? 3,
+      organizations: state.organizations ?? [],
+      taxRegistrations: state.taxRegistrations ?? [],
+      businessUnits: state.businessUnits ?? [],
+      salesChannels: state.salesChannels ?? [],
+      stores: state.stores,
+      operations: state.operations,
+      summary: {
+        organizations: state.organizations?.length ?? 0,
+        stores: state.stores.length,
+        operations: state.operations.length,
+        firstOperationDate: state.operations.length ? [...state.operations].sort((a, b) => a.date.localeCompare(b.date))[0]?.date : null,
+        lastOperationDate: state.operations.length ? [...state.operations].sort((a, b) => b.date.localeCompare(a.date))[0]?.date : null,
+      },
+    }
+    downloadJson(payload, `robot-buhgalter-dlya-proverki-${exportedAt.slice(0, 10)}.json`)
+    toast.success(`Экспортировано операций: ${state.operations.length}. API-ключи в файл не включены.`)
+  }
+
+  const importJson = async (file: File) => {
+    try {
+      const data = JSON.parse(await file.text()) as AppState
+      if (!Array.isArray(data.stores) || !Array.isArray(data.operations)) throw new Error()
+      setState(() => ({ ...data, credentials: data.credentials ?? [] }))
+      toast.success('Данные восстановлены из резервной копии')
+    } catch {
+      toast.error('Файл не похож на резервную копию Робота-бухгалтера')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -48,7 +96,20 @@ export default function SettingsSection({ state, setState, resetToDemo, clearAll
           </CardContent>
         </Card>
       ))}
-      <Card className="bg-white"><CardHeader className="pb-3"><CardTitle className="text-base">Данные</CardTitle></CardHeader><CardContent className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportJson}><Download className="mr-2 h-4 w-4" /> Скачать резервную копию</Button><Button variant="outline" onClick={() => fileRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> Восстановить из копии</Button><input ref={fileRef} type="file" accept=".json" className="hidden" onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} /><Button variant="outline" onClick={resetToDemo}>Загрузить демо-данные</Button><Button variant="destructive" onClick={() => confirm('Удалить ВСЕ данные безвозвратно?') && clearAll()}>Очистить всё</Button></CardContent></Card>
+      <Card className="bg-white">
+        <CardHeader className="pb-3"><CardTitle className="text-base">Данные</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={exportForReview}><Download className="mr-2 h-4 w-4" /> Экспорт данных для проверки</Button>
+            <Button variant="outline" onClick={exportJson}><Download className="mr-2 h-4 w-4" /> Скачать резервную копию</Button>
+            <Button variant="outline" onClick={() => fileRef.current?.click()}><Upload className="mr-2 h-4 w-4" /> Восстановить из копии</Button>
+            <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
+            <Button variant="outline" onClick={resetToDemo}>Загрузить демо-данные</Button>
+            <Button variant="destructive" onClick={() => confirm('Удалить ВСЕ данные безвозвратно?') && clearAll()}>Очистить всё</Button>
+          </div>
+          <p className="text-xs text-stone-500">«Экспорт данных для проверки» выгружает операции и налоговую структуру, но никогда не включает API-ключи маркетплейсов. Этот файл можно безопаснее передать бухгалтеру или использовать для сверки расчётов.</p>
+        </CardContent>
+      </Card>
     </div>
   )
 }
