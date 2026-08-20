@@ -16,9 +16,7 @@ export interface Store {
   usnProfitRate?: number
   npdRate?: number
   vatMode?: VatMode
-  /** Доход предыдущего года для определения обязанности по НДС на УСН. */
   priorYearRevenue?: number
-  /** Для ПСН — потенциальный доход из патента, используемый в расчёте 1% взноса. */
   patentPotentialIncome?: number
   insurancePremiums: number
   hasEmployees: boolean
@@ -53,12 +51,26 @@ export interface ApiCredential {
   channelId?: string
 }
 
+export type TaxPaymentKind = 'usn' | 'patent' | 'insurance_fixed' | 'insurance_1pct' | 'other'
+export interface TaxPayment {
+  id: string
+  organizationId: string
+  kind: TaxPaymentKind
+  amount: number
+  paidAt: string
+  /** Идентификатор обязательства из налогового календаря, если платеж относится к нему. */
+  obligationId?: string
+  note?: string
+  source?: 'manual' | 'bank' | 'ens'
+}
+
 export type Section = 'dashboard' | 'organizations' | 'operations' | 'taxes' | 'connections' | 'settings'
 
 export interface AppState {
   stores: Store[]
   operations: Operation[]
   credentials: ApiCredential[]
+  taxPayments?: TaxPayment[]
   users?: import('./domain').UserAccount[]
   organizations?: import('./domain').Organization[]
   taxRegistrations?: import('./domain').TaxRegistration[]
