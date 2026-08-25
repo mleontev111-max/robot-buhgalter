@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppState, Store } from '@/types'
 import { makeDemoState } from '@/lib/demo'
 
@@ -33,15 +33,35 @@ function normalizeState(data: AppState): AppState {
 }
 
 export function loadState(): AppState {
-  try { const raw = localStorage.getItem(KEY); if (raw) return normalizeState(JSON.parse(raw) as AppState) } catch { /* повреждённые данные */ }
+  try {
+    const raw = localStorage.getItem(KEY)
+    if (raw) return normalizeState(JSON.parse(raw) as AppState)
+  } catch {
+    // Повреждённые локальные данные заменяем демо-контуром.
+  }
   return normalizeState(makeDemoState())
 }
-export function saveState(state: AppState) { localStorage.setItem(KEY, JSON.stringify(state)) }
+
+export function saveState(state: AppState) {
+  localStorage.setItem(KEY, JSON.stringify(state))
+}
+
 export function useAppState() {
   const [state, setStateRaw] = useState<AppState>(loadState)
   useEffect(() => { saveState(state) }, [state])
-  const setState = useCallback((updater: (prev: AppState) => AppState) => setStateRaw((prev) => updater(prev)), [])
+
+  const setState = useCallback(
+    (updater: (prev: AppState) => AppState) => setStateRaw((prev) => updater(prev)),
+    [],
+  )
   const resetToDemo = useCallback(() => setStateRaw(normalizeState(makeDemoState())), [])
-  const clearAll = useCallback(() => setStateRaw(normalizeState({ stores: [], operations: [], credentials: [], taxPayments: [] })), [])
-  return { state, setState, resetToDemo, clearAll }
+  const clearAll = useCallback(
+    () => setStateRaw(normalizeState({ stores: [], operations: [], credentials: [], taxPayments: [] })),
+    [],
+  )
+
+  return useMemo(
+    () => ({ state, setState, resetToDemo, clearAll }),
+    [state, setState, resetToDemo, clearAll],
+  )
 }
