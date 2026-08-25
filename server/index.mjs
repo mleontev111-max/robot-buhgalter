@@ -6,7 +6,26 @@ import cors from 'cors'
 import { SYNCERS, TESTERS } from './marketplaces.mjs'
 
 const app = express()
-app.use(cors({ origin: true }))
+
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://kolyman.ru',
+  'https://www.kolyman.ru',
+  'https://mleontev111-max.github.io',
+]
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : defaultOrigins)
+    .map((value) => value.trim())
+    .filter(Boolean),
+)
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true)
+    return callback(new Error(`CORS: origin не разрешён: ${origin}`))
+  },
+}))
 app.use(express.json({ limit: '1mb' }))
 
 const validate = (body) => {
@@ -19,8 +38,16 @@ const validate = (body) => {
 const SOURCE_MODE = {
   ozon: { sourceMode: 'financial', complete: true },
   wb: { sourceMode: 'financial', complete: true },
-  yandex: { sourceMode: 'orders', complete: false, warning: 'Сейчас используется API заказов. Для бухгалтерского контура добавляется комплект финансовых отчётов Яндекс Маркета.' },
-  avito: { sourceMode: 'orders', complete: false, warning: 'Полнота финансовых данных зависит от возможностей конкретного кабинета Авито.' },
+  yandex: {
+    sourceMode: 'orders',
+    complete: false,
+    warning: 'Сейчас используется API заказов. Для бухгалтерского контура добавляется комплект финансовых отчётов Яндекс Маркета.',
+  },
+  avito: {
+    sourceMode: 'orders',
+    complete: false,
+    warning: 'Полнота финансовых данных зависит от возможностей конкретного кабинета Авито.',
+  },
 }
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'robot-buhgalter-sync' }))
