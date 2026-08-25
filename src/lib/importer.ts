@@ -52,7 +52,7 @@ const toDate = (v: string | undefined): string | null => {
   const s = v.trim()
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (m) return `${m[1]}-${m[2]}-${m[3]}`
-  m = s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/)
+  m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/)
   if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
   return null
 }
@@ -63,9 +63,7 @@ export async function parseReportFile(file: File): Promise<ParsedReport> {
   if (text.includes('�')) text = new TextDecoder('windows-1251').decode(buf)
 
   const isExcel = /\.(xlsx|xls)$/i.test(file.name)
-  const wb = isExcel
-    ? XLSX.read(buf, { type: 'array' })
-    : XLSX.read(text, { type: 'string' })
+  const wb = isExcel ? XLSX.read(buf, { type: 'array' }) : XLSX.read(text, { type: 'string' })
   const sheet = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, {
     defval: '',
@@ -91,8 +89,7 @@ export function buildOperations(
       skipped++
       continue
     }
-    const key = date
-    const existing = byDay.get(key)
+    const existing = byDay.get(date)
     const commission = toNum(row[map.commission])
     const logistics = toNum(row[map.logistics])
     const ads = toNum(row[map.ads])
@@ -104,7 +101,7 @@ export function buildOperations(
       existing.ads += ads
       existing.otherExpenses += otherExpenses
     } else {
-      byDay.set(key, {
+      byDay.set(date, {
         id: Math.random().toString(36).slice(2, 10),
         storeId,
         marketplace,
