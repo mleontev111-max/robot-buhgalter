@@ -32,14 +32,17 @@
 - `npm run lint`: **passed**.
 - `npm run build`: **passed**.
 - CI и Pages workflow теперь оба выполняют unit-тесты.
+- Commit `efa230a` проверен по GitHub Actions.
+- Workflow `CI`, run `32839983668`: **success**.
+- Workflow `Deploy to GitHub Pages`, run `32839983635`: **success**.
 
 ---
 
 ## 🔄 Статус текущего изменения
 
-- Локальные проверки зелёные.
-- Новый commit и GitHub Actions должны быть проверены отдельно после отправки в `main`.
-- Не считать новый CI подтверждённым до завершения соответствующих workflow.
+- Локальные проверки и GitHub Actions зелёные.
+- Налоговые regression-тесты включены в обязательные проверки CI и Pages.
+- P0 «подтвердить CI и добавить первый набор unit-тестов» закрыт.
 
 ---
 
@@ -47,7 +50,7 @@
 
 | Приоритет | Задача | Статус |
 |---|---|---|
-| P0 | Проверить CI и Pages для commit с Vitest | После push |
+| P0 | Проверить CI и Pages для commit с Vitest | ✅ Готово |
 | P0 | Перенести данные из localStorage в backend/PostgreSQL | Запланировано |
 | P0 | Перенести API credentials в backend secret storage | Запланировано |
 | P1 | Добавить таблицу налоговых правил по годам | До поддержки 2027 |
