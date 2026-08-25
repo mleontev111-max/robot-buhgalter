@@ -128,7 +128,7 @@ export function calcUsnVat(store: Store, revenue: number) {
 }
 
 /** Прогрессивный НДФЛ 2026 для предпринимательского дохода ИП на ОСНО. */
-function calcIpNdfl2026(base: number) {
+export function calcIpNdfl2026(base: number) {
   const b = Math.max(0, base)
   if (b <= 2_400_000) return b * 0.13
   if (b <= 5_000_000) return 312_000 + (b - 2_400_000) * 0.15
