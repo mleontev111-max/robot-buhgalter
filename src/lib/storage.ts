@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppState, Store } from '@/types'
 import { makeDemoState } from '@/lib/demo'
+import { encryptSecret, getSessionCredentialsKey } from '@/lib/secretCrypto'
 
 const KEY = 'robot-buhgalter-v3'
 
@@ -126,14 +127,49 @@ export function loadState(): AppState {
   return normalizeState(makeDemoState())
 }
 
-export function saveState(state: AppState) {
-  localStorage.setItem(KEY, JSON.stringify(state))
+/**
+ * Готовит state к записи в localStorage: если ключи шифрования разблокированы
+ * в этой вкладке (см. secretCrypto.ts), заменяет открытые apiKey/clientId в
+ * credentials на зашифрованный secret. В React-стейте (аргумент state) при
+ * этом ничего не меняется — расшифрованные значения остаются в памяти для UI,
+ * шифруется только то, что реально уходит на диск.
+ */
+export async function buildPersistedState(state: AppState): Promise<AppState> {
+  const key = getSessionCredentialsKey()
+  if (!key) return state
+  const credentials = await Promise.all(
+    state.credentials.map(async (credential) => {
+      if (!credential.apiKey && !credential.clientId) return credential
+      const secret = await encryptSecret(
+        { clientId: credential.clientId, apiKey: credential.apiKey },
+        key,
+      )
+      return { ...credential, clientId: '', apiKey: '', secret }
+    }),
+  )
+  return { ...state, credentials }
+}
+
+// Сохранения выстраиваются в очередь: без этого при двух быстрых подряд
+// изменениях (например, ввод символа за символом в поле ключа) шифрование
+// (асинхронное) могло бы завершиться не в том порядке, и в localStorage
+// оказалась бы более старая версия поверх новой.
+let pendingSave: Promise<void> = Promise.resolve()
+
+export function saveState(state: AppState): Promise<void> {
+  pendingSave = pendingSave
+    .catch(() => undefined)
+    .then(async () => {
+      const persisted = await buildPersistedState(state)
+      localStorage.setItem(KEY, JSON.stringify(persisted))
+    })
+  return pendingSave
 }
 
 export function useAppState() {
   const [state, setStateRaw] = useState<AppState>(loadState)
   useEffect(() => {
-    saveState(state)
+    saveState(state).catch((err) => console.error('Не удалось сохранить данные', err))
   }, [state])
 
   const setState = useCallback(

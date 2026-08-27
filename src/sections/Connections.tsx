@@ -5,10 +5,26 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { KeyRound, Loader2, Plus, RefreshCw, ServerOff, ShieldCheck, Trash2 } from 'lucide-react'
+import {
+  KeyRound,
+  Loader2,
+  Lock,
+  Plus,
+  RefreshCw,
+  ServerOff,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react'
 import type { ApiCredential, AppState, MarketplaceId, Operation } from '@/types'
 import { MARKETPLACES } from '@/lib/marketplaces'
 import { toast } from 'sonner'
+import {
+  decryptSecret,
+  deriveCredentialsKey,
+  generateCredentialsSalt,
+  isCredentialsUnlocked,
+  setSessionCredentialsKey,
+} from '@/lib/secretCrypto'
 
 const SERVER = 'http://localhost:8787'
 type Status = 'idle' | 'testing' | 'ok' | 'fail'
@@ -35,6 +51,57 @@ export default function Connections({
       .then((r) => setServerUp(r.ok))
       .catch(() => setServerUp(false))
   }, [])
+
+  // Шифрование API-ключей: см. src/lib/secretCrypto.ts. Пароль нигде не
+  // сохраняется, ключ шифрования живёт только в памяти этой вкладки —
+  // после перезагрузки страницы unlocked снова становится false.
+  const [unlocked, setUnlocked] = useState(isCredentialsUnlocked())
+  const [passInput, setPassInput] = useState('')
+  const [passBusy, setPassBusy] = useState(false)
+  const encryptionEnabled = Boolean(state.credentialsSalt)
+  const hasSecrets = state.credentials.some((c) => c.secret)
+
+  const setupEncryption = async () => {
+    if (!passInput) return
+    setPassBusy(true)
+    try {
+      const salt = state.credentialsSalt ?? generateCredentialsSalt()
+      const key = await deriveCredentialsKey(passInput, salt)
+      setSessionCredentialsKey(key)
+      setUnlocked(true)
+      setState((p) => ({ ...p, credentialsSalt: salt }))
+      setPassInput('')
+      toast.success('Пароль задан. Ключи API теперь шифруются перед сохранением.')
+    } finally {
+      setPassBusy(false)
+    }
+  }
+
+  const unlock = async () => {
+    if (!passInput || !state.credentialsSalt) return
+    setPassBusy(true)
+    try {
+      const key = await deriveCredentialsKey(passInput, state.credentialsSalt)
+      const decrypted = await Promise.all(
+        state.credentials.map(async (c) => {
+          if (!c.secret) return c
+          const { clientId, apiKey } = await decryptSecret<{ clientId: string; apiKey: string }>(
+            c.secret,
+            key,
+          )
+          return { ...c, clientId, apiKey }
+        }),
+      )
+      setSessionCredentialsKey(key)
+      setUnlocked(true)
+      setState((p) => ({ ...p, credentials: decrypted }))
+      setPassInput('')
+    } catch {
+      toast.error('Неверный пароль')
+    } finally {
+      setPassBusy(false)
+    }
+  }
   const credentials = useMemo(
     () =>
       state.credentials.map((c) => ({
@@ -172,6 +239,59 @@ export default function Connections({
           независимо и складываются только на уровне налогового расчёта ИП.
         </p>
       </div>
+      {encryptionEnabled && !unlocked && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <Lock className="h-4 w-4" />
+          <AlertDescription className="space-y-2 text-xs">
+            <p>Ключи API зашифрованы. Введите пароль, чтобы использовать подключения.</p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="password"
+                placeholder="Пароль"
+                className="h-8 w-48 bg-white"
+                value={passInput}
+                onChange={(e) => setPassInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && unlock()}
+              />
+              <Button size="sm" disabled={!passInput || passBusy} onClick={unlock}>
+                {passBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                Разблокировать
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      {!encryptionEnabled && !hasSecrets && (
+        <Alert className="border-stone-200 bg-stone-50">
+          <Lock className="h-4 w-4" />
+          <AlertDescription className="space-y-2 text-xs">
+            <p>
+              Сейчас API-ключи маркетплейсов хранятся в браузере в открытом виде. Можно задать
+              пароль — тогда ключи будут шифроваться перед сохранением (AES-GCM, пароль нигде не
+              хранится).
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="password"
+                placeholder="Придумайте пароль"
+                className="h-8 w-48 bg-white"
+                value={passInput}
+                onChange={(e) => setPassInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setupEncryption()}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!passInput || passBusy}
+                onClick={setupEncryption}
+              >
+                {passBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                Зашифровать ключи
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
       {serverUp === false && (
         <Alert className="border-red-200 bg-red-50">
           <ServerOff className="h-4 w-4" />
@@ -254,116 +374,130 @@ export default function Connections({
                     {list.length === 0 && (
                       <p className="text-sm text-stone-500">Подключений пока нет.</p>
                     )}
-                    {list.map((c) => (
-                      <div key={c.id} className="rounded-xl border p-4">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              className="w-56 font-medium"
-                              value={c.name ?? ''}
-                              onChange={(e) => update(c.id!, { name: e.target.value })}
-                            />
-                            {status[c.id!] === 'ok' && (
-                              <Badge className="bg-emerald-600">Подключено</Badge>
-                            )}
-                            {status[c.id!] === 'fail' && (
-                              <Badge variant="destructive">Ошибка</Badge>
-                            )}
-                            {c.lastSyncCoverage && (
-                              <Badge
-                                variant={c.lastSyncCoverage.complete ? 'secondary' : 'outline'}
-                              >
-                                {c.lastSyncCoverage.complete
-                                  ? 'Финансовые данные'
-                                  : 'Предварительно'}
-                              </Badge>
-                            )}
+                    {list.map((c) => {
+                      const isLocked = Boolean(c.secret) && !unlocked
+                      return (
+                        <div key={c.id} className="rounded-xl border p-4">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                className="w-56 font-medium"
+                                value={c.name ?? ''}
+                                onChange={(e) => update(c.id!, { name: e.target.value })}
+                              />
+                              {isLocked && (
+                                <Badge variant="outline" className="gap-1">
+                                  <Lock className="h-3 w-3" /> Заблокировано
+                                </Badge>
+                              )}
+                              {status[c.id!] === 'ok' && (
+                                <Badge className="bg-emerald-600">Подключено</Badge>
+                              )}
+                              {status[c.id!] === 'fail' && (
+                                <Badge variant="destructive">Ошибка</Badge>
+                              )}
+                              {c.lastSyncCoverage && (
+                                <Badge
+                                  variant={c.lastSyncCoverage.complete ? 'secondary' : 'outline'}
+                                >
+                                  {c.lastSyncCoverage.complete
+                                    ? 'Финансовые данные'
+                                    : 'Предварительно'}
+                                </Badge>
+                              )}
+                            </div>
+                            <Button size="icon" variant="ghost" onClick={() => remove(c.id!)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
                           </div>
-                          <Button size="icon" variant="ghost" onClick={() => remove(c.id!)}>
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </div>
-                        {mp.fields.clientId && (
-                          <div className="mb-2">
-                            <Label className="text-xs">{mp.fields.clientId}</Label>
+                          {mp.fields.clientId && (
+                            <div className="mb-2">
+                              <Label className="text-xs">{mp.fields.clientId}</Label>
+                              <Input
+                                disabled={isLocked}
+                                placeholder={
+                                  isLocked ? '••••• (разблокируйте, чтобы изменить)' : ''
+                                }
+                                value={c.clientId}
+                                onChange={(e) =>
+                                  update(c.id!, {
+                                    clientId: e.target.value,
+                                    updatedAt: new Date().toISOString(),
+                                  })
+                                }
+                              />
+                            </div>
+                          )}
+                          <div className="mb-3">
+                            <Label className="text-xs">{mp.fields.apiKey}</Label>
                             <Input
-                              value={c.clientId}
+                              type="password"
+                              disabled={isLocked}
+                              placeholder={isLocked ? '••••• (разблокируйте, чтобы изменить)' : ''}
+                              value={c.apiKey}
                               onChange={(e) =>
                                 update(c.id!, {
-                                  clientId: e.target.value,
+                                  apiKey: e.target.value,
                                   updatedAt: new Date().toISOString(),
                                 })
                               }
                             />
                           </div>
-                        )}
-                        <div className="mb-3">
-                          <Label className="text-xs">{mp.fields.apiKey}</Label>
-                          <Input
-                            type="password"
-                            value={c.apiKey}
-                            onChange={(e) =>
-                              update(c.id!, {
-                                apiKey: e.target.value,
-                                updatedAt: new Date().toISOString(),
-                              })
-                            }
-                          />
-                        </div>
-                        {c.lastSyncCoverage && (
-                          <div
-                            className={`mb-3 rounded-lg border p-2 text-xs ${c.lastSyncCoverage.complete ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}
-                          >
-                            <div>
-                              <b>Покрытие:</b> {c.lastSyncCoverage.dateFrom} —{' '}
-                              {c.lastSyncCoverage.dateTo}, операций:{' '}
-                              {c.lastSyncCoverage.operationCount}
+                          {c.lastSyncCoverage && (
+                            <div
+                              className={`mb-3 rounded-lg border p-2 text-xs ${c.lastSyncCoverage.complete ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}
+                            >
+                              <div>
+                                <b>Покрытие:</b> {c.lastSyncCoverage.dateFrom} —{' '}
+                                {c.lastSyncCoverage.dateTo}, операций:{' '}
+                                {c.lastSyncCoverage.operationCount}
+                              </div>
+                              <div>
+                                <b>Режим:</b>{' '}
+                                {c.lastSyncCoverage.sourceMode === 'financial'
+                                  ? 'финансовый отчёт/операции'
+                                  : 'заказы/предварительный источник'}
+                              </div>
+                              {c.lastSyncCoverage.warning && (
+                                <div className="mt-1">⚠ {c.lastSyncCoverage.warning}</div>
+                              )}
                             </div>
-                            <div>
-                              <b>Режим:</b>{' '}
-                              {c.lastSyncCoverage.sourceMode === 'financial'
-                                ? 'финансовый отчёт/операции'
-                                : 'заказы/предварительный источник'}
-                            </div>
-                            {c.lastSyncCoverage.warning && (
-                              <div className="mt-1">⚠ {c.lastSyncCoverage.warning}</div>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!c.apiKey || !serverUp}
+                              onClick={() => test(c)}
+                            >
+                              {status[c.id!] === 'testing' ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : null}
+                              Проверить
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="bg-emerald-700 hover:bg-emerald-800"
+                              disabled={!c.apiKey || !serverUp || syncing !== null}
+                              onClick={() => sync(c)}
+                            >
+                              {syncing === c.id ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                              )}
+                              Синхронизировать
+                            </Button>
+                            {c.lastSyncAt && (
+                              <span className="self-center text-xs text-stone-500">
+                                Последняя синхронизация:{' '}
+                                {new Date(c.lastSyncAt).toLocaleString('ru-RU')}
+                              </span>
                             )}
                           </div>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!c.apiKey || !serverUp}
-                            onClick={() => test(c)}
-                          >
-                            {status[c.id!] === 'testing' ? (
-                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                            ) : null}
-                            Проверить
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-emerald-700 hover:bg-emerald-800"
-                            disabled={!c.apiKey || !serverUp || syncing !== null}
-                            onClick={() => sync(c)}
-                          >
-                            {syncing === c.id ? (
-                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                            )}
-                            Синхронизировать
-                          </Button>
-                          {c.lastSyncAt && (
-                            <span className="self-center text-xs text-stone-500">
-                              Последняя синхронизация:{' '}
-                              {new Date(c.lastSyncAt).toLocaleString('ru-RU')}
-                            </span>
-                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </CardContent>
                 </Card>
               )
