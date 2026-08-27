@@ -3,7 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { AppState, MarketplaceId, Operation } from '@/types'
 import { MARKETPLACES } from '@/lib/marketplaces'
 
@@ -18,7 +24,14 @@ export default function OperationForm({ open, onClose, state, onSave }: Props) {
   const [storeId, setStoreId] = useState(state.stores[0]?.id ?? '')
   const [marketplace, setMarketplace] = useState<MarketplaceId>('ozon')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [vals, setVals] = useState({ revenue: '', commission: '', logistics: '', ads: '', otherExpenses: '', note: '' })
+  const [vals, setVals] = useState({
+    revenue: '',
+    commission: '',
+    logistics: '',
+    ads: '',
+    otherExpenses: '',
+    note: '',
+  })
 
   const num = (s: string) => Math.abs(parseFloat(s.replace(',', '.')) || 0)
 
@@ -62,10 +75,14 @@ export default function OperationForm({ open, onClose, state, onSave }: Props) {
           <div className="space-y-1.5">
             <Label className="text-xs">Магазин</Label>
             <Select value={storeId} onValueChange={setStoreId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {state.stores.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -73,10 +90,14 @@ export default function OperationForm({ open, onClose, state, onSave }: Props) {
           <div className="space-y-1.5">
             <Label className="text-xs">Маркетплейс</Label>
             <Select value={marketplace} onValueChange={(v) => setMarketplace(v as MarketplaceId)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {MARKETPLACES.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -92,10 +113,16 @@ export default function OperationForm({ open, onClose, state, onSave }: Props) {
           {moneyField('otherExpenses', 'Прочие расходы, ₽')}
           <div className="col-span-2 space-y-1.5">
             <Label className="text-xs">Комментарий</Label>
-            <Input value={vals.note} onChange={(e) => setVals({ ...vals, note: e.target.value })} placeholder="Например: отчёт за неделю" />
+            <Input
+              value={vals.note}
+              onChange={(e) => setVals({ ...vals, note: e.target.value })}
+              placeholder="Например: отчёт за неделю"
+            />
           </div>
         </div>
-        <Button onClick={save} className="w-full bg-emerald-700 hover:bg-emerald-800">Сохранить</Button>
+        <Button onClick={save} className="w-full bg-emerald-700 hover:bg-emerald-800">
+          Сохранить
+        </Button>
       </DialogContent>
     </Dialog>
   )

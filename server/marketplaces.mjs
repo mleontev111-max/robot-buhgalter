@@ -24,7 +24,13 @@ class DayBucket {
   add(date, { revenue = 0, commission = 0, logistics = 0, ads = 0, otherExpenses = 0 }) {
     const day = toDay(date)
     if (!day) return
-    const d = this.days.get(day) ?? { revenue: 0, commission: 0, logistics: 0, ads: 0, otherExpenses: 0 }
+    const d = this.days.get(day) ?? {
+      revenue: 0,
+      commission: 0,
+      logistics: 0,
+      ads: 0,
+      otherExpenses: 0,
+    }
     d.revenue += revenue
     d.commission += commission
     d.logistics += logistics
@@ -68,7 +74,9 @@ async function apiFetch(url, { method = 'GET', headers = {}, body, timeoutMs = 6
       const msg = json?.message || json?.error || json?.errors?.[0]?.message || text.slice(0, 300)
       const err = new Error(`HTTP ${res.status}: ${msg}`)
       err.status = res.status
-      err.retryAfter = Number(res.headers.get('x-ratelimit-retry-after') ?? res.headers.get('retry-after') ?? 0)
+      err.retryAfter = Number(
+        res.headers.get('x-ratelimit-retry-after') ?? res.headers.get('retry-after') ?? 0,
+      )
       throw err
     }
     return json
@@ -86,7 +94,11 @@ async function ozonSync({ clientId, apiKey, dateFrom, dateTo }) {
   // Ozon отдаёт максимум 1 месяц за запрос — идём помесячно
   const start = new Date(`${dateFrom}T00:00:00Z`)
   const end = new Date(`${dateTo}T00:00:00Z`)
-  for (let cur = new Date(start); cur <= end; cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1))) {
+  for (
+    let cur = new Date(start);
+    cur <= end;
+    cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1))
+  ) {
     const from = cur > start ? cur : start
     const monthEnd = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 0))
     const to = monthEnd < end ? monthEnd : end
@@ -131,7 +143,12 @@ async function ozonTest({ clientId, apiKey }) {
     method: 'POST',
     headers: { 'Client-Id': clientId, 'Api-Key': apiKey, 'Content-Type': 'application/json' },
     body: {
-      filter: { date: { from: `${today}T00:00:00.000Z`, to: `${today}T23:59:59.999Z` }, operation_type: [], posting_number: '', transaction_type: 'all' },
+      filter: {
+        date: { from: `${today}T00:00:00.000Z`, to: `${today}T23:59:59.999Z` },
+        operation_type: [],
+        posting_number: '',
+        transaction_type: 'all',
+      },
       page: 1,
       page_size: 1,
     },
@@ -157,7 +174,11 @@ async function wbSyncByReport({ apiKey, dateFrom, dateTo }) {
   const headers = { Authorization: apiKey }
   const bucket = new DayBucket()
   // WB отдаёт максимум ~30 дней за запрос — идём окнами
-  for (let from = new Date(dateFrom); from <= new Date(dateTo); from = new Date(from.getTime() + 29 * DAY)) {
+  for (
+    let from = new Date(dateFrom);
+    from <= new Date(dateTo);
+    from = new Date(from.getTime() + 29 * DAY)
+  ) {
     const to = new Date(Math.min(from.getTime() + 29 * DAY, new Date(dateTo).getTime()))
     const fmt = (d) => d.toISOString().slice(0, 19)
     let rrdid = 0
@@ -185,10 +206,15 @@ async function wbSyncByReport({ apiKey, dateFrom, dateTo }) {
         const isSale = oper === 'Продажа'
         const isReturn = oper === 'Возврат'
         bucket.add(r.rr_dt, {
-          revenue: isSale ? (r.retail_amount ?? r.ppvz_for_pay ?? 0) : isReturn ? -(r.retail_amount ?? r.ppvz_for_pay ?? 0) : 0,
+          revenue: isSale
+            ? (r.retail_amount ?? r.ppvz_for_pay ?? 0)
+            : isReturn
+              ? -(r.retail_amount ?? r.ppvz_for_pay ?? 0)
+              : 0,
           commission: r.ppvz_sales_commission ?? 0,
           logistics: (r.delivery_rub ?? 0) + (r.rebill_logistic_cost ?? 0),
-          otherExpenses: (r.storage_fee ?? 0) + (r.penalty ?? 0) + (r.deduction ?? 0) + (r.acceptance ?? 0),
+          otherExpenses:
+            (r.storage_fee ?? 0) + (r.penalty ?? 0) + (r.deduction ?? 0) + (r.acceptance ?? 0),
         })
         rrdid = r.rrd_id
       }
@@ -220,7 +246,9 @@ async function wbSyncBySales({ apiKey, dateFrom, dateTo }) {
 }
 
 async function wbTest({ apiKey }) {
-  await apiFetch('https://statistics-api.wildberries.ru/ping', { headers: { Authorization: apiKey } })
+  await apiFetch('https://statistics-api.wildberries.ru/ping', {
+    headers: { Authorization: apiKey },
+  })
   return true
 }
 
@@ -291,20 +319,27 @@ async function avitoSync({ clientId, apiKey, dateFrom, dateTo }) {
   const bucket = new DayBucket()
   let offset = 0
   for (let i = 0; i < 50; i++) {
-    const data = await apiFetch(`https://api.avito.ru/order-management/1/orders?limit=20&offset=${offset}`, { headers })
+    const data = await apiFetch(
+      `https://api.avito.ru/order-management/1/orders?limit=20&offset=${offset}`,
+      { headers },
+    )
     const orders = data?.orders ?? data?.result?.orders ?? []
     if (orders.length === 0) break
     for (const o of orders) {
       const day = toDay(o.createdAt ?? o.created_at ?? o.date)
       if (!day) continue
       // заказы идут по убыванию даты — дальше периода нет смысла листать
-      if (day < dateFrom) { offset = Infinity; break }
+      if (day < dateFrom) {
+        offset = Infinity
+        break
+      }
       if (day > dateTo) continue
       if (o.status === 'canceled') continue
       const revenue =
         Number(o.prices?.price ?? 0) ||
         (o.items ?? []).reduce((a, it) => a + Number(it.prices?.price ?? 0) * (it.count ?? 1), 0)
-      const commission = Number(o.prices?.commission ?? 0) ||
+      const commission =
+        Number(o.prices?.commission ?? 0) ||
         (o.items ?? []).reduce((a, it) => a + Number(it.prices?.commission ?? 0), 0)
       bucket.add(day, { revenue, commission })
     }

@@ -19,7 +19,15 @@ export interface ColumnMapping {
 
 const KEYWORDS: Record<keyof ColumnMapping, string[]> = {
   date: ['дата'],
-  revenue: ['реализовано', 'начислено', 'выручка', 'цена продажи', 'сумма заказа', 'стоимость', 'продажа'],
+  revenue: [
+    'реализовано',
+    'начислено',
+    'выручка',
+    'цена продажи',
+    'сумма заказа',
+    'стоимость',
+    'продажа',
+  ],
   commission: ['комиссия', 'вознагражден'],
   logistics: ['логистика', 'доставка'],
   ads: ['реклама', 'продвижение', 'трафарет'],
@@ -43,7 +51,12 @@ function suggest(headers: string[]): ColumnMapping {
 
 const toNum = (v: string | undefined): number => {
   if (!v) return 0
-  const n = parseFloat(v.replace(/\s/g, '').replace(/₽|р\.?|руб\.?/gi, '').replace(',', '.'))
+  const n = parseFloat(
+    v
+      .replace(/\s/g, '')
+      .replace(/₽|р\.?|руб\.?/gi, '')
+      .replace(',', '.'),
+  )
   return Number.isFinite(n) ? Math.abs(n) : 0
 }
 

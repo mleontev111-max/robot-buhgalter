@@ -11,8 +11,10 @@ import type { LegalForm, MarketplaceId, TaxRegime, VatMode } from './index'
 export type UserRole = 'owner' | 'admin' | 'accountant' | 'client'
 export type OrganizationStatus = 'active' | 'archived'
 export type BusinessUnitType = 'retail_store' | 'online_store' | 'wholesale' | 'other'
-export type SalesChannelType = 'marketplace' | 'website' | 'retail' | 'wholesale' | 'bank' | 'cash_register' | 'manual'
-export type DataSourceType = 'marketplace_api' | 'bank_statement' | 'cash_register' | 'ofd' | 'excel' | 'csv' | 'manual'
+export type SalesChannelType =
+  'marketplace' | 'website' | 'retail' | 'wholesale' | 'bank' | 'cash_register' | 'manual'
+export type DataSourceType =
+  'marketplace_api' | 'bank_statement' | 'cash_register' | 'ofd' | 'excel' | 'csv' | 'manual'
 
 export interface UserAccount {
   id: string

@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { Building2, Calculator, Leaf, LayoutDashboard, Plug, ReceiptText, Settings } from 'lucide-react'
+import {
+  Building2,
+  Calculator,
+  Leaf,
+  LayoutDashboard,
+  Plug,
+  ReceiptText,
+  Settings,
+} from 'lucide-react'
 import { useAppState } from '@/lib/storage'
 import type { Section } from '@/types'
 import Dashboard from '@/sections/Dashboard'

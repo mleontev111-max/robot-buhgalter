@@ -68,9 +68,10 @@ function allocateInsurance(
   const result = new Map<string, number>()
   let allocated = 0
   revenues.forEach((item, index) => {
-    const amount = index === revenues.length - 1
-      ? Math.max(0, totalInsurance - allocated)
-      : Math.round(totalInsurance * Math.max(0, item.revenue) / totalRevenue * 100) / 100
+    const amount =
+      index === revenues.length - 1
+        ? Math.max(0, totalInsurance - allocated)
+        : Math.round(((totalInsurance * Math.max(0, item.revenue)) / totalRevenue) * 100) / 100
     allocated += amount
     result.set(item.store.id, amount)
   })
@@ -109,15 +110,19 @@ export function calcOrganizationTax(
     const storeOps = orgOps.filter((op) => op.storeId === store.id)
     const gross = grossTax(store, storeOps)
     const requested = allocated.get(store.id) ?? 0
-    const deduction = store.hasEmployees ? Math.min(requested, gross * 0.5) : Math.min(requested, gross)
+    const deduction = store.hasEmployees
+      ? Math.min(requested, gross * 0.5)
+      : Math.min(requested, gross)
     const notes: string[] = []
 
     if (eligible(store) && !store.hasEmployees) {
       notes.push('ИП без работников: страховые взносы могут уменьшать налог без ограничения 50%.')
     }
     if (eligible(store)) notes.push(`Распределение страховых взносов: ${allocation}.`)
-    if (store.hasEmployees && eligible(store)) notes.push('При наличии работников учтено ограничение 50%.')
-    if (requested > deduction) notes.push('Часть выделенных взносов не использована из-за недостаточной суммы налога.')
+    if (store.hasEmployees && eligible(store))
+      notes.push('При наличии работников учтено ограничение 50%.')
+    if (requested > deduction)
+      notes.push('Часть выделенных взносов не использована из-за недостаточной суммы налога.')
 
     return {
       storeId: store.id,

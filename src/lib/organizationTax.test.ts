@@ -24,21 +24,30 @@ const stores: Store[] = [
   },
 ]
 
-const operations: Operation[] = [{
-  id: 'sale',
-  storeId: 'usn',
-  marketplace: 'ozon',
-  date: '2026-05-01',
-  revenue: 2_000_000,
-  commission: 0,
-  logistics: 0,
-  ads: 0,
-  otherExpenses: 0,
-}]
+const operations: Operation[] = [
+  {
+    id: 'sale',
+    storeId: 'usn',
+    marketplace: 'ozon',
+    date: '2026-05-01',
+    revenue: 2_000_000,
+    commission: 0,
+    logistics: 0,
+    ads: 0,
+    otherExpenses: 0,
+  },
+]
 
 describe('совмещение ПСН и УСН на уровне Organization', () => {
   it('начисляет фиксированные взносы один раз на ИП и распределяет их без дублирования', () => {
-    const result = calcOrganizationTax('ip-1', stores, operations, '2026-01-01', '2026-12-31', 'usn')
+    const result = calcOrganizationTax(
+      'ip-1',
+      stores,
+      operations,
+      '2026-01-01',
+      '2026-12-31',
+      'usn',
+    )
 
     expect(result.fixedInsurance).toBe(57_390)
     expect(result.additionalInsurance).toBe(27_000)
@@ -51,7 +60,14 @@ describe('совмещение ПСН и УСН на уровне Organization',
   })
 
   it('может направить единый вычет на патент', () => {
-    const result = calcOrganizationTax('ip-1', stores, operations, '2026-01-01', '2026-12-31', 'psn')
+    const result = calcOrganizationTax(
+      'ip-1',
+      stores,
+      operations,
+      '2026-01-01',
+      '2026-12-31',
+      'psn',
+    )
 
     expect(result.insuranceUsed).toBe(80_000)
     expect(result.remainingInsurance).toBe(4_390)

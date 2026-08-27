@@ -56,7 +56,9 @@ describe('УСН 6%', () => {
   })
 
   it('при наличии работников ограничивает вычет половиной налога', () => {
-    const result = calcTax(store({ hasEmployees: true, insurancePremiums: 100_000 }), [operation(1_000_000)])
+    const result = calcTax(store({ hasEmployees: true, insurancePremiums: 100_000 }), [
+      operation(1_000_000),
+    ])
     expect(result.taxGross).toBe(60_000)
     expect(result.deduction).toBe(30_000)
     expect(result.taxDue).toBe(30_000)
@@ -65,7 +67,10 @@ describe('УСН 6%', () => {
 
 describe('ПСН', () => {
   it('использует потенциальный доход для дополнительного 1% и стоимость патента для налога', () => {
-    const result = calcTax(store({ regime: 'psn', patentCost: 80_000, patentPotentialIncome: 1_000_000 }), [])
+    const result = calcTax(
+      store({ regime: 'psn', patentCost: 80_000, patentPotentialIncome: 1_000_000 }),
+      [],
+    )
     expect(result.taxBase).toBe(1_000_000)
     expect(result.insurance.additional).toBe(7_000)
     expect(result.taxGross).toBe(80_000)
@@ -73,7 +78,10 @@ describe('ПСН', () => {
   })
 
   it('при наличии работников уменьшает стоимость патента максимум на 50%', () => {
-    const result = calcTax(store({ regime: 'psn', patentCost: 80_000, hasEmployees: true, insurancePremiums: 100_000 }), [])
+    const result = calcTax(
+      store({ regime: 'psn', patentCost: 80_000, hasEmployees: true, insurancePremiums: 100_000 }),
+      [],
+    )
     expect(result.deduction).toBe(40_000)
     expect(result.taxDue).toBe(40_000)
   })
@@ -81,8 +89,16 @@ describe('ПСН', () => {
 
 describe('НДС при УСН в 2026 году', () => {
   it('применяет освобождение до 20 млн ₽ и специальные ставки к сумме с НДС', () => {
-    expect(calcUsnVat(store({ priorYearRevenue: 20_000_000 }), 20_000_000)).toEqual({ mode: 'exempt', rate: 0, vat: 0 })
-    expect(calcUsnVat(store({ priorYearRevenue: 20_000_000 }), 21_000_000)).toEqual({ mode: 'vat5', rate: 0.05, vat: 1_000_000 })
+    expect(calcUsnVat(store({ priorYearRevenue: 20_000_000 }), 20_000_000)).toEqual({
+      mode: 'exempt',
+      rate: 0,
+      vat: 0,
+    })
+    expect(calcUsnVat(store({ priorYearRevenue: 20_000_000 }), 21_000_000)).toEqual({
+      mode: 'vat5',
+      rate: 0.05,
+      vat: 1_000_000,
+    })
     const vat7 = calcUsnVat(store({ vatMode: 'vat7' }), 10_700_000)
     const vat22 = calcUsnVat(store({ vatMode: 'vat22' }), 1_220_000)
     expect(vat7).toMatchObject({ mode: 'vat7', rate: 0.07 })

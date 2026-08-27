@@ -20,12 +20,14 @@ const allowedOrigins = new Set(
     .filter(Boolean),
 )
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true)
-    return callback(new Error(`CORS: origin не разрешён: ${origin}`))
-  },
-}))
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true)
+      return callback(new Error(`CORS: origin не разрешён: ${origin}`))
+    },
+  }),
+)
 app.use(express.json({ limit: '1mb' }))
 
 const validate = (body) => {
@@ -41,7 +43,8 @@ const SOURCE_MODE = {
   yandex: {
     sourceMode: 'orders',
     complete: false,
-    warning: 'Сейчас используется API заказов. Для бухгалтерского контура добавляется комплект финансовых отчётов Яндекс Маркета.',
+    warning:
+      'Сейчас используется API заказов. Для бухгалтерского контура добавляется комплект финансовых отчётов Яндекс Маркета.',
   },
   avito: {
     sourceMode: 'orders',
@@ -86,4 +89,6 @@ app.post('/api/sync', async (req, res) => {
 })
 
 const port = process.env.PORT ?? 8787
-app.listen(port, () => console.log(`Робот-бухгалтер: сервер синхронизации на http://localhost:${port}`))
+app.listen(port, () =>
+  console.log(`Робот-бухгалтер: сервер синхронизации на http://localhost:${port}`),
+)

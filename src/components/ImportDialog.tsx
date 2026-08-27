@@ -3,11 +3,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Upload } from 'lucide-react'
 import type { AppState, MarketplaceId, Operation } from '@/types'
 import { MARKETPLACES } from '@/lib/marketplaces'
-import { buildOperations, parseReportFile, type ColumnMapping, type ParsedReport } from '@/lib/importer'
+import {
+  buildOperations,
+  parseReportFile,
+  type ColumnMapping,
+  type ParsedReport,
+} from '@/lib/importer'
 import { toast } from 'sonner'
 
 interface Props {
@@ -79,10 +90,14 @@ export default function ImportDialog({ open, onClose, state, onImport }: Props) 
           <div className="space-y-1.5">
             <Label>Магазин</Label>
             <Select value={storeId} onValueChange={setStoreId}>
-              <SelectTrigger><SelectValue placeholder="Выберите магазин" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите магазин" />
+              </SelectTrigger>
               <SelectContent>
                 {state.stores.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -90,10 +105,14 @@ export default function ImportDialog({ open, onClose, state, onImport }: Props) 
           <div className="space-y-1.5">
             <Label>Маркетплейс</Label>
             <Select value={marketplace} onValueChange={(v) => setMarketplace(v as MarketplaceId)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {MARKETPLACES.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -116,7 +135,10 @@ export default function ImportDialog({ open, onClose, state, onImport }: Props) 
         {parsed && map && (
           <div className="space-y-3">
             <div className="text-sm font-medium">
-              Сопоставление колонок <span className="font-normal text-stone-500">(найдено {parsed.rows.length} строк)</span>
+              Сопоставление колонок{' '}
+              <span className="font-normal text-stone-500">
+                (найдено {parsed.rows.length} строк)
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {MAP_FIELDS.map((f) => (
@@ -128,11 +150,15 @@ export default function ImportDialog({ open, onClose, state, onImport }: Props) 
                     value={map[f.key] || '—'}
                     onValueChange={(v) => setMap({ ...map, [f.key]: v === '—' ? '' : v })}
                   >
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="—">— не импортировать —</SelectItem>
                       {parsed.headers.map((h) => (
-                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                        <SelectItem key={h} value={h}>
+                          {h}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

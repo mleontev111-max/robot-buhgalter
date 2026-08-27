@@ -1,0 +1,11 @@
+dist
+node_modules
+src/components/ui
+checkpoints
+
+# Формат этих файлов сознательно не унифицирован Prettier —
+# правки здесь не были частью изначальной проблемы (плотный однострочный код в src/**).
+*.md
+tailwind.config.js
+tsconfig*.json
+vite.config.ts

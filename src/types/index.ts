@@ -30,7 +30,8 @@ export interface Operation {
   businessUnitId?: string
   channelId?: string
   taxRegistrationId?: string
-  sourceType?: 'marketplace_api' | 'bank_statement' | 'cash_register' | 'ofd' | 'excel' | 'csv' | 'manual'
+  sourceType?:
+    'marketplace_api' | 'bank_statement' | 'cash_register' | 'ofd' | 'excel' | 'csv' | 'manual'
   marketplace: MarketplaceId
   date: string
   revenue: number
@@ -77,7 +78,8 @@ export interface TaxPayment {
   source?: 'manual' | 'bank' | 'ens'
 }
 
-export type Section = 'dashboard' | 'organizations' | 'operations' | 'taxes' | 'connections' | 'settings'
+export type Section =
+  'dashboard' | 'organizations' | 'operations' | 'taxes' | 'connections' | 'settings'
 
 export interface AppState {
   stores: Store[]
@@ -94,4 +96,19 @@ export interface AppState {
   schemaVersion?: number
 }
 
-export type { AccessGrant, BusinessUnit, BusinessUnitType, DataSourceType, Organization, OrganizationStatus, PatentProfile, SalesChannel, SalesChannelType, Subscription, SubscriptionPlan, TaxRegistration, UserAccount, UserRole } from './domain'
+export type {
+  AccessGrant,
+  BusinessUnit,
+  BusinessUnitType,
+  DataSourceType,
+  Organization,
+  OrganizationStatus,
+  PatentProfile,
+  SalesChannel,
+  SalesChannelType,
+  Subscription,
+  SubscriptionPlan,
+  TaxRegistration,
+  UserAccount,
+  UserRole,
+} from './domain'

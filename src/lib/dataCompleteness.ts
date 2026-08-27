@@ -21,10 +21,24 @@ export interface TaxDataCompleteness {
   issues: string[]
 }
 
-function coverageForOps(id: string, label: string, ops: Operation[], from: string, to: string): SourceCoverage {
-  const inRange = ops.filter((op) => op.date >= from && op.date <= to).sort((a, b) => a.date.localeCompare(b.date))
+function coverageForOps(
+  id: string,
+  label: string,
+  ops: Operation[],
+  from: string,
+  to: string,
+): SourceCoverage {
+  const inRange = ops
+    .filter((op) => op.date >= from && op.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date))
   if (!inRange.length) {
-    return { id, label, level: 'missing', operations: 0, message: `Нет операций за период ${from}—${to}` }
+    return {
+      id,
+      label,
+      level: 'missing',
+      operations: 0,
+      message: `Нет операций за период ${from}—${to}`,
+    }
   }
 
   const firstDate = inRange[0].date
@@ -45,33 +59,51 @@ function coverageForOps(id: string, label: string, ops: Operation[], from: strin
   }
 }
 
-export function checkStoreCompleteness(state: AppState, store: Store, from: string, to: string): TaxDataCompleteness {
+export function checkStoreCompleteness(
+  state: AppState,
+  store: Store,
+  from: string,
+  to: string,
+): TaxDataCompleteness {
   const issues: string[] = []
   const sources: SourceCoverage[] = []
   const ops = state.operations.filter((op) => op.storeId === store.id)
 
   if (store.regime === 'psn') {
     if (!store.patentCost || store.patentCost <= 0) issues.push('Не заполнена стоимость патента.')
-    if (!store.patentPotentialIncome || store.patentPotentialIncome <= 0) issues.push('Не заполнен потенциально возможный доход из патента для расчёта дополнительного 1%.')
+    if (!store.patentPotentialIncome || store.patentPotentialIncome <= 0)
+      issues.push(
+        'Не заполнен потенциально возможный доход из патента для расчёта дополнительного 1%.',
+      )
 
-    const cashChannels = (state.salesChannels ?? []).filter((channel) =>
-      channel.organizationId === store.organizationId &&
-      channel.businessUnitId === store.businessUnitId &&
-      (channel.type === 'retail' || channel.sourceType === 'cash_register') &&
-      channel.active,
+    const cashChannels = (state.salesChannels ?? []).filter(
+      (channel) =>
+        channel.organizationId === store.organizationId &&
+        channel.businessUnitId === store.businessUnitId &&
+        (channel.type === 'retail' || channel.sourceType === 'cash_register') &&
+        channel.active,
     )
     if (cashChannels.length) {
       for (const channel of cashChannels) {
-        sources.push(coverageForOps(channel.id, channel.name, ops.filter((op) => op.channelId === channel.id), from, to))
+        sources.push(
+          coverageForOps(
+            channel.id,
+            channel.name,
+            ops.filter((op) => op.channelId === channel.id),
+            from,
+            to,
+          ),
+        )
       }
     } else {
       sources.push(coverageForOps(`${store.id}:retail`, 'Розничная касса / ОФД', ops, from, to))
     }
   } else {
-    const channels = (state.salesChannels ?? []).filter((channel) =>
-      channel.organizationId === store.organizationId &&
-      channel.businessUnitId === store.businessUnitId &&
-      channel.active,
+    const channels = (state.salesChannels ?? []).filter(
+      (channel) =>
+        channel.organizationId === store.organizationId &&
+        channel.businessUnitId === store.businessUnitId &&
+        channel.active,
     )
 
     if (channels.length) {
@@ -89,11 +121,12 @@ export function checkStoreCompleteness(state: AppState, store: Store, from: stri
   missing.forEach((source) => issues.push(`${source.label}: ${source.message}`))
   partial.forEach((source) => issues.push(`${source.label}: ${source.message}`))
 
-  const level: CompletenessLevel = issues.length === 0
-    ? 'complete'
-    : missing.length || issues.some((issue) => issue.startsWith('Не заполн'))
-      ? 'missing'
-      : 'partial'
+  const level: CompletenessLevel =
+    issues.length === 0
+      ? 'complete'
+      : missing.length || issues.some((issue) => issue.startsWith('Не заполн'))
+        ? 'missing'
+        : 'partial'
 
   return {
     level,
@@ -105,7 +138,12 @@ export function checkStoreCompleteness(state: AppState, store: Store, from: stri
   }
 }
 
-export function checkOrganizationCompleteness(state: AppState, organizationId: string, from: string, to: string): TaxDataCompleteness {
+export function checkOrganizationCompleteness(
+  state: AppState,
+  organizationId: string,
+  from: string,
+  to: string,
+): TaxDataCompleteness {
   const stores = state.stores.filter((store) => store.organizationId === organizationId)
   const checks = stores.map((store) => checkStoreCompleteness(state, store, from, to))
   const sources = checks.flatMap((check) => check.sources)

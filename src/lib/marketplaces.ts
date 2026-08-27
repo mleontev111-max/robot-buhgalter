@@ -35,9 +35,30 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     fields: { clientId: 'Client-Id', apiKey: 'Api-Key' },
     reportHelp: 'Финансовые операции Seller API + отчет о реализации для контрольной сверки.',
     financialReports: [
-      { id: 'transactions', name: 'Финансовые операции', purpose: 'tax_revenue', requiredForTax: true, status: 'api', note: 'Продажи, возвраты, комиссии, логистика и удержания по кабинету.' },
-      { id: 'realization', name: 'Отчет о реализации', purpose: 'documents', requiredForTax: true, status: 'fallback_file', note: 'Используется как контрольный документ и резервный источник.' },
-      { id: 'payouts', name: 'Выплаты', purpose: 'payouts', requiredForTax: false, status: 'api', note: 'Нужны для сверки с банком, но не заменяют налоговую выручку.' },
+      {
+        id: 'transactions',
+        name: 'Финансовые операции',
+        purpose: 'tax_revenue',
+        requiredForTax: true,
+        status: 'api',
+        note: 'Продажи, возвраты, комиссии, логистика и удержания по кабинету.',
+      },
+      {
+        id: 'realization',
+        name: 'Отчет о реализации',
+        purpose: 'documents',
+        requiredForTax: true,
+        status: 'fallback_file',
+        note: 'Используется как контрольный документ и резервный источник.',
+      },
+      {
+        id: 'payouts',
+        name: 'Выплаты',
+        purpose: 'payouts',
+        requiredForTax: false,
+        status: 'api',
+        note: 'Нужны для сверки с банком, но не заменяют налоговую выручку.',
+      },
     ],
   },
   {
@@ -54,9 +75,30 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     fields: { clientId: '', apiKey: 'Токен API' },
     reportHelp: 'Детализация отчетов реализации + финансовые удержания и документы.',
     financialReports: [
-      { id: 'sales-report', name: 'Детализация отчёта реализации', purpose: 'tax_revenue', requiredForTax: true, status: 'api', note: 'Главный источник продаж, возвратов и удержаний WB.' },
-      { id: 'acquiring', name: 'Эквайринговые издержки', purpose: 'fees', requiredForTax: false, status: 'api', note: 'Для точного разложения расходов и сверки.' },
-      { id: 'documents', name: 'Бухгалтерские документы', purpose: 'documents', requiredForTax: false, status: 'api', note: 'Акты, УПД/УКД и другие документы для архива.' },
+      {
+        id: 'sales-report',
+        name: 'Детализация отчёта реализации',
+        purpose: 'tax_revenue',
+        requiredForTax: true,
+        status: 'api',
+        note: 'Главный источник продаж, возвратов и удержаний WB.',
+      },
+      {
+        id: 'acquiring',
+        name: 'Эквайринговые издержки',
+        purpose: 'fees',
+        requiredForTax: false,
+        status: 'api',
+        note: 'Для точного разложения расходов и сверки.',
+      },
+      {
+        id: 'documents',
+        name: 'Бухгалтерские документы',
+        purpose: 'documents',
+        requiredForTax: false,
+        status: 'api',
+        note: 'Акты, УПД/УКД и другие документы для архива.',
+      },
     ],
   },
   {
@@ -73,10 +115,38 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     fields: { clientId: 'CampaignId', apiKey: 'Api-Key' },
     reportHelp: 'Робот должен собирать комплект финансовых отчетов, а не только список заказов.',
     financialReports: [
-      { id: 'goods-realization', name: 'Отчёт по реализации', purpose: 'tax_revenue', requiredForTax: true, status: 'api', note: 'Основной документ для реализации.' },
-      { id: 'united-returns', name: 'Невыкупы и возвраты', purpose: 'returns', requiredForTax: true, status: 'api', note: 'Нужен для корректировки выручки.' },
-      { id: 'marketplace-services', name: 'Стоимость услуг Маркета', purpose: 'fees', requiredForTax: false, status: 'api', note: 'Комиссии и услуги.' },
-      { id: 'united-netting', name: 'Платежи', purpose: 'payouts', requiredForTax: false, status: 'api', note: 'Сверка выплат с банковским счётом.' },
+      {
+        id: 'goods-realization',
+        name: 'Отчёт по реализации',
+        purpose: 'tax_revenue',
+        requiredForTax: true,
+        status: 'api',
+        note: 'Основной документ для реализации.',
+      },
+      {
+        id: 'united-returns',
+        name: 'Невыкупы и возвраты',
+        purpose: 'returns',
+        requiredForTax: true,
+        status: 'api',
+        note: 'Нужен для корректировки выручки.',
+      },
+      {
+        id: 'marketplace-services',
+        name: 'Стоимость услуг Маркета',
+        purpose: 'fees',
+        requiredForTax: false,
+        status: 'api',
+        note: 'Комиссии и услуги.',
+      },
+      {
+        id: 'united-netting',
+        name: 'Платежи',
+        purpose: 'payouts',
+        requiredForTax: false,
+        status: 'api',
+        note: 'Сверка выплат с банковским счётом.',
+      },
     ],
   },
   {
@@ -91,14 +161,37 @@ export const MARKETPLACES: MarketplaceInfo[] = [
     ],
     keyUrl: 'https://developers.avito.ru/',
     fields: { clientId: 'Client ID', apiKey: 'Client Secret' },
-    reportHelp: 'API заказов используется при наличии доступа; финансовый отчет может потребовать файловую выгрузку.',
+    reportHelp:
+      'API заказов используется при наличии доступа; финансовый отчет может потребовать файловую выгрузку.',
     financialReports: [
-      { id: 'orders', name: 'Заказы/сделки', purpose: 'tax_revenue', requiredForTax: true, status: 'limited', note: 'Доступ зависит от тарифа и типа кабинета.' },
-      { id: 'financial-export', name: 'Финансовая выгрузка кабинета', purpose: 'documents', requiredForTax: true, status: 'fallback_file', note: 'Резервный источник, если API не содержит полной финансовой информации.' },
-      { id: 'bank-reconciliation', name: 'Сверка поступлений', purpose: 'payouts', requiredForTax: false, status: 'fallback_file', note: 'Проверяем по банковской выписке, не используем выплату как замену выручки.' },
+      {
+        id: 'orders',
+        name: 'Заказы/сделки',
+        purpose: 'tax_revenue',
+        requiredForTax: true,
+        status: 'limited',
+        note: 'Доступ зависит от тарифа и типа кабинета.',
+      },
+      {
+        id: 'financial-export',
+        name: 'Финансовая выгрузка кабинета',
+        purpose: 'documents',
+        requiredForTax: true,
+        status: 'fallback_file',
+        note: 'Резервный источник, если API не содержит полной финансовой информации.',
+      },
+      {
+        id: 'bank-reconciliation',
+        name: 'Сверка поступлений',
+        purpose: 'payouts',
+        requiredForTax: false,
+        status: 'fallback_file',
+        note: 'Проверяем по банковской выписке, не используем выплату как замену выручки.',
+      },
     ],
   },
 ]
 
-export const mpInfo = (id: MarketplaceId): MarketplaceInfo => MARKETPLACES.find((m) => m.id === id) ?? MARKETPLACES[0]
+export const mpInfo = (id: MarketplaceId): MarketplaceInfo =>
+  MARKETPLACES.find((m) => m.id === id) ?? MARKETPLACES[0]
 export const mpName = (id: MarketplaceId): string => mpInfo(id).name
