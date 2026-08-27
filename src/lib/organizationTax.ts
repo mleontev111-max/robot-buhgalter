@@ -1,5 +1,5 @@
 import type { Operation, Store } from '@/types'
-import { TAX_2026, calcInsurance2026, sumOps } from './tax'
+import { LATEST_KNOWN_TAX_YEAR, calcInsuranceForYear, resolveTaxRules, sumOps } from './tax'
 
 /** Расчёт налогов на уровне ИП, а не отдельной торговой точки. */
 export type InsuranceAllocation = 'proportional' | 'usn' | 'psn'
@@ -29,6 +29,8 @@ export interface OrganizationTaxSummary {
   insuranceUsed: number
   taxAfterInsurance: number
   remainingInsurance: number
+  /** Например, предупреждение, что налоговые параметры года периода ещё не заведены. */
+  notes: string[]
 }
 
 const eligible = (store: Store) => store.regime === 'usn6' || store.regime === 'psn'
@@ -103,8 +105,18 @@ export function calcOrganizationTax(
     .filter((store) => store.regime === 'psn')
     .reduce((sum, store) => sum + Math.max(0, store.patentPotentialIncome ?? 0), 0)
 
-  const insurance = calcInsurance2026(usnRevenue + psnPotential)
+  const periodYear = Number(from.slice(0, 4))
+  const resolvedRules = resolveTaxRules(
+    Number.isFinite(periodYear) ? periodYear : LATEST_KNOWN_TAX_YEAR,
+  )
+  const insurance = calcInsuranceForYear(usnRevenue + psnPotential, resolvedRules.year)
   const allocated = allocateInsurance(orgStores, orgOps, insurance.total, allocation)
+  const orgNotes: string[] = resolvedRules.isFallback
+    ? [
+        `Официальные налоговые параметры на ${resolvedRules.requestedYear} год ещё не добавлены — ` +
+          `страховые взносы посчитаны по правилам ${resolvedRules.year} года как приближение.`,
+      ]
+    : []
 
   const lines = orgStores.map((store) => {
     const storeOps = orgOps.filter((op) => op.storeId === store.id)
@@ -153,13 +165,18 @@ export function calcOrganizationTax(
     insuranceUsed,
     taxAfterInsurance: Math.max(0, taxBeforeInsurance - insuranceUsed),
     remainingInsurance: Math.max(0, insurance.total - insuranceUsed),
+    notes: orgNotes,
   }
 }
 
-export function organizationInsuranceHint(revenueBase: number) {
-  const insurance = calcInsurance2026(revenueBase)
+export function organizationInsuranceHint(
+  revenueBase: number,
+  year: number = LATEST_KNOWN_TAX_YEAR,
+) {
+  const resolved = resolveTaxRules(year)
+  const insurance = calcInsuranceForYear(revenueBase, resolved.year)
   return {
-    threshold: TAX_2026.insuranceAdditionalThreshold,
+    threshold: resolved.rules.insuranceAdditionalThreshold,
     additionalBase: insurance.additionalBase,
     additional: insurance.additional,
     total: insurance.total,

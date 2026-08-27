@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Operation, Store } from '@/types'
-import { TAX_2026, calcInsurance2026, calcIpNdfl2026, calcTax, calcUsnVat } from './tax'
+import {
+  LATEST_KNOWN_TAX_YEAR,
+  TAX_2026,
+  calcInsurance2026,
+  calcIpNdfl2026,
+  calcTax,
+  calcUsnVat,
+  quarterlyAdvances,
+  resolveTaxRules,
+} from './tax'
 
 const store = (overrides: Partial<Store>): Store => ({
   id: 'store-1',
@@ -117,5 +126,42 @@ describe('прогрессивный НДФЛ ИП на ОСНО в 2026 год�
     [60_000_000, 11_602_000],
   ])('рассчитывает налог для базы %i ₽', (base, expected) => {
     expect(calcIpNdfl2026(base)).toBe(expected)
+  })
+})
+
+describe('налоговые параметры по годам (resolveTaxRules)', () => {
+  it('для известного года возвращает точные правила без фоллбека', () => {
+    const resolved = resolveTaxRules(2026)
+    expect(resolved).toMatchObject({ year: 2026, requestedYear: 2026, isFallback: false })
+    expect(resolved.rules).toEqual(TAX_2026)
+  })
+
+  it('для ещё не заведённого года честно падает на последний известный, а не молчит', () => {
+    const resolved = resolveTaxRules(2027)
+    expect(resolved.isFallback).toBe(true)
+    expect(resolved.requestedYear).toBe(2027)
+    expect(resolved.year).toBe(LATEST_KNOWN_TAX_YEAR)
+    expect(resolved.rules).toEqual(TAX_2026)
+  })
+
+  it('calcTax для года без правил считает по последнему известному году и предупреждает об этом', () => {
+    const knownYearResult = calcTax(store({}), [operation(1_000_000)], 2026)
+    const fallbackYearResult = calcTax(store({}), [operation(1_000_000)], 2027)
+
+    // Цифры совпадают с расчётом по 2026 году — правила действительно применены как приближение...
+    expect(fallbackYearResult.taxDue).toBe(knownYearResult.taxDue)
+    expect(fallbackYearResult.taxGross).toBe(knownYearResult.taxGross)
+    // ...но в отличие от 2026-го, пользователь явно предупреждён, что это не подтверждённый расчёт.
+    expect(
+      fallbackYearResult.notes.some((n) => n.includes('2027') && n.includes('ещё не добавлены')),
+    ).toBe(true)
+    expect(knownYearResult.notes.some((n) => n.includes('ещё не добавлены'))).toBe(false)
+  })
+
+  it('quarterlyAdvances передаёт выбранный год в расчёт, а не всегда считает по 2026-му', () => {
+    const ops = [operation(1_000_000, { date: '2027-02-01' })]
+    const advances = quarterlyAdvances(store({}), ops, 2027)
+    const q1 = advances[0]
+    expect(q1.calc.notes.some((n) => n.includes('2027'))).toBe(true)
   })
 })

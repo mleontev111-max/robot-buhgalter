@@ -8,24 +8,89 @@ export const REGIME_LABELS: Record<TaxRegime, string> = {
   osno: 'ОСНО',
 }
 
-/** Федеральные параметры РФ для расчётов за 2026 год. */
-export const TAX_2026 = {
-  insuranceFixed: 57_390,
-  insuranceAdditionalThreshold: 300_000,
-  insuranceAdditionalRate: 0.01,
-  insuranceAdditionalMax: 321_818,
-  usnVatExemptionThreshold: 20_000_000,
-  usnVat5Upper: 272_500_000,
-  usnVat7Upper: 490_500_000,
-  usnVatPriorYear5Upper: 250_000_000,
-  usnVatPriorYear7Upper: 450_000_000,
-  vatGeneral: 0.22,
-  vatSpecial5: 0.05,
-  vatSpecial7: 0.07,
-  usnDefaultIncomeRate: 0.06,
-  usnDefaultProfitRate: 0.15,
-  usnMinimumTaxRate: 0.01,
-} as const
+export interface TaxYearRules {
+  insuranceFixed: number
+  insuranceAdditionalThreshold: number
+  insuranceAdditionalRate: number
+  insuranceAdditionalMax: number
+  usnVatExemptionThreshold: number
+  usnVat5Upper: number
+  usnVat7Upper: number
+  usnVatPriorYear5Upper: number
+  usnVatPriorYear7Upper: number
+  vatGeneral: number
+  vatSpecial5: number
+  vatSpecial7: number
+  usnDefaultIncomeRate: number
+  usnDefaultProfitRate: number
+  usnMinimumTaxRate: number
+}
+
+/**
+ * Реестр федеральных налоговых параметров РФ по годам.
+ * Пока подтверждён только 2026 год. Когда появятся официальные параметры
+ * следующего года (взносы, пороги НДС при УСН, ставки), добавьте новую
+ * запись сюда по ключу-году — остальной код ничего не нужно менять,
+ * он сам подхватит новый год через resolveTaxRules().
+ */
+export const TAX_RULES_BY_YEAR: Record<number, TaxYearRules> = {
+  2026: {
+    insuranceFixed: 57_390,
+    insuranceAdditionalThreshold: 300_000,
+    insuranceAdditionalRate: 0.01,
+    insuranceAdditionalMax: 321_818,
+    usnVatExemptionThreshold: 20_000_000,
+    usnVat5Upper: 272_500_000,
+    usnVat7Upper: 490_500_000,
+    usnVatPriorYear5Upper: 250_000_000,
+    usnVatPriorYear7Upper: 450_000_000,
+    vatGeneral: 0.22,
+    vatSpecial5: 0.05,
+    vatSpecial7: 0.07,
+    usnDefaultIncomeRate: 0.06,
+    usnDefaultProfitRate: 0.15,
+    usnMinimumTaxRate: 0.01,
+  },
+}
+
+const KNOWN_TAX_YEARS = Object.keys(TAX_RULES_BY_YEAR)
+  .map(Number)
+  .sort((a, b) => a - b)
+
+/** Последний год, для которого в приложении заведены официальные параметры. */
+export const LATEST_KNOWN_TAX_YEAR = KNOWN_TAX_YEARS[KNOWN_TAX_YEARS.length - 1]
+
+/** Совместимость со старым кодом/тестами: параметры текущего 2026 года напрямую. */
+export const TAX_2026 = TAX_RULES_BY_YEAR[2026]
+
+export interface ResolvedTaxRules {
+  /** Год, чьи параметры реально применены. */
+  year: number
+  /** Год, который запросил вызывающий код. */
+  requestedYear: number
+  rules: TaxYearRules
+  /** true — для requestedYear ещё нет параметров, взят последний известный год. */
+  isFallback: boolean
+}
+
+/**
+ * Возвращает налоговые параметры для года. Если для запрошенного года
+ * правила ещё не заведены (например, наступил следующий год, а актуальные
+ * ставки в приложение ещё не добавлены), используются параметры последнего
+ * известного года — но результат явно помечается isFallback: true, чтобы
+ * вызывающий код мог предупредить пользователя, а не тихо посчитать
+ * по устаревшим/неподтверждённым цифрам.
+ */
+export function resolveTaxRules(year: number): ResolvedTaxRules {
+  const rules = TAX_RULES_BY_YEAR[year]
+  if (rules) return { year, requestedYear: year, rules, isFallback: false }
+  return {
+    year: LATEST_KNOWN_TAX_YEAR,
+    requestedYear: year,
+    rules: TAX_RULES_BY_YEAR[LATEST_KNOWN_TAX_YEAR],
+    isFallback: true,
+  }
+}
 
 export interface Period {
   from: string
@@ -89,47 +154,58 @@ export function sumOps(ops: Operation[]) {
  * Поэтому для ИП, совмещающего ПСН и УСН, окончательное распределение
  * страховых взносов выполняется на уровне OrganizationTaxSummary.
  */
-export function calcInsurance2026(additionalBasis: number): InsuranceBreakdown {
+function calcInsuranceWithRules(additionalBasis: number, rules: TaxYearRules): InsuranceBreakdown {
   const base = Math.max(0, additionalBasis)
-  const additionalBase = Math.max(0, base - TAX_2026.insuranceAdditionalThreshold)
+  const additionalBase = Math.max(0, base - rules.insuranceAdditionalThreshold)
   const additional = Math.min(
-    additionalBase * TAX_2026.insuranceAdditionalRate,
-    TAX_2026.insuranceAdditionalMax,
+    additionalBase * rules.insuranceAdditionalRate,
+    rules.insuranceAdditionalMax,
   )
   return {
-    fixed: TAX_2026.insuranceFixed,
+    fixed: rules.insuranceFixed,
     additional,
-    total: TAX_2026.insuranceFixed + additional,
+    total: rules.insuranceFixed + additional,
     additionalBase,
   }
 }
 
-function resolveVatMode(store: Store, revenue: number): VatMode {
+/** То же самое, что calcInsuranceWithRules, но по году — резолвит правила сама
+ * (с честным фоллбеком на последний известный год, если запрошенный ещё не заведён). */
+export function calcInsuranceForYear(additionalBasis: number, year: number): InsuranceBreakdown {
+  return calcInsuranceWithRules(additionalBasis, resolveTaxRules(year).rules)
+}
+
+export function calcInsurance2026(additionalBasis: number): InsuranceBreakdown {
+  return calcInsuranceForYear(additionalBasis, 2026)
+}
+
+function resolveVatMode(store: Store, revenue: number, rules: TaxYearRules): VatMode {
   if (store.vatMode && store.vatMode !== 'auto') return store.vatMode
 
-  // Для 2026 года сначала учитываем доход предыдущего года. Если его нет,
-  // используем текущий год как ориентир и помечаем расчёт как предварительный.
+  // Сначала учитываем доход предыдущего года. Если его нет, используем
+  // текущий год как ориентир и помечаем расчёт как предварительный.
   const prior = store.priorYearRevenue
   if (prior != null) {
-    if (prior <= TAX_2026.usnVatExemptionThreshold) {
-      if (revenue <= TAX_2026.usnVatExemptionThreshold) return 'exempt'
-      if (revenue <= TAX_2026.usnVat5Upper) return 'vat5'
-      if (revenue <= TAX_2026.usnVat7Upper) return 'vat7'
+    if (prior <= rules.usnVatExemptionThreshold) {
+      if (revenue <= rules.usnVatExemptionThreshold) return 'exempt'
+      if (revenue <= rules.usnVat5Upper) return 'vat5'
+      if (revenue <= rules.usnVat7Upper) return 'vat7'
       return 'vat22'
     }
-    if (prior <= TAX_2026.usnVatPriorYear5Upper) return 'vat5'
-    if (prior <= TAX_2026.usnVatPriorYear7Upper) return 'vat7'
+    if (prior <= rules.usnVatPriorYear5Upper) return 'vat5'
+    if (prior <= rules.usnVatPriorYear7Upper) return 'vat7'
     return 'vat22'
   }
 
-  if (revenue <= TAX_2026.usnVatExemptionThreshold) return 'exempt'
-  if (revenue <= TAX_2026.usnVat5Upper) return 'vat5'
-  if (revenue <= TAX_2026.usnVat7Upper) return 'vat7'
+  if (revenue <= rules.usnVatExemptionThreshold) return 'exempt'
+  if (revenue <= rules.usnVat5Upper) return 'vat5'
+  if (revenue <= rules.usnVat7Upper) return 'vat7'
   return 'vat22'
 }
 
-export function calcUsnVat(store: Store, revenue: number) {
-  const mode = resolveVatMode(store, revenue)
+export function calcUsnVat(store: Store, revenue: number, year: number = LATEST_KNOWN_TAX_YEAR) {
+  const rules = resolveTaxRules(year).rules
+  const mode = resolveVatMode(store, revenue, rules)
   if (store.regime !== 'usn6' && store.regime !== 'usn15')
     return { mode: 'exempt' as VatMode, rate: 0, vat: 0 }
   if (mode === 'exempt') return { mode, rate: 0, vat: 0 }
@@ -148,10 +224,33 @@ export function calcIpNdfl2026(base: number) {
   return 9_402_000 + (b - 50_000_000) * 0.22
 }
 
-export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
+/** Реестр формул прогрессивного НДФЛ ИП на ОСНО по годам — по аналогии с
+ * TAX_RULES_BY_YEAR. Пока известна только формула 2026 года. */
+const NDFL_CALCULATORS: Record<number, (base: number) => number> = {
+  2026: calcIpNdfl2026,
+}
+
+function calcIpNdflForYear(base: number, year: number) {
+  const calc = NDFL_CALCULATORS[year]
+  if (calc) return { amount: calc(base), appliedYear: year, isFallback: false }
+  return { amount: calcIpNdfl2026(base), appliedYear: 2026, isFallback: true }
+}
+
+export function calcTax(
+  store: Store,
+  ops: Operation[],
+  year: number = LATEST_KNOWN_TAX_YEAR,
+): TaxBreakdown {
+  const { rules, requestedYear, isFallback } = resolveTaxRules(year)
   const s = sumOps(ops)
   const marketplaceExpenses = s.commission + s.logistics + s.ads + s.otherExpenses
   const notes: string[] = []
+  if (isFallback) {
+    notes.push(
+      `Официальные налоговые параметры на ${requestedYear} год ещё не добавлены в приложение — ` +
+        `расчёт выполнен по правилам ${LATEST_KNOWN_TAX_YEAR} года как приближение. Сверьте цифры вручную ближе к сроку уплаты.`,
+    )
+  }
   const revenue = Math.max(0, s.revenue)
 
   // Для 1% определяем базу в соответствии с режимом.
@@ -161,7 +260,7 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       : store.regime === 'psn'
         ? Math.max(0, store.patentPotentialIncome ?? 0)
         : revenue
-  const autoInsurance = calcInsurance2026(insuranceBasis)
+  const autoInsurance = calcInsuranceWithRules(insuranceBasis, rules)
   const insuranceTotal = store.hasEmployees
     ? Math.max(0, store.insurancePremiums)
     : store.insurancePremiums > 0
@@ -182,12 +281,12 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
 
   switch (store.regime) {
     case 'usn6': {
-      const rate = (store.usnIncomeRate ?? TAX_2026.usnDefaultIncomeRate * 100) / 100
+      const rate = (store.usnIncomeRate ?? rules.usnDefaultIncomeRate * 100) / 100
       taxGross = revenue * rate
       const limit = store.hasEmployees ? 0.5 : 1
       deduction = Math.min(insurance.total, taxGross * limit)
       taxDue = Math.max(0, taxGross - deduction)
-      const vatCalc = calcUsnVat(store, revenue)
+      const vatCalc = calcUsnVat(store, revenue, year)
       vat = vatCalc.vat
       vatRate = vatCalc.rate
       vatMode = vatCalc.mode
@@ -200,18 +299,18 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       break
     }
     case 'usn15': {
-      const rate = (store.usnProfitRate ?? TAX_2026.usnDefaultProfitRate * 100) / 100
-      // В 2026 году взносы ИП, подлежащие уплате за налоговый период,
-      // могут включаться в расходы по УСН 15%; здесь это отражается отдельно,
-      // чтобы не смешивать их с комиссиями и логистикой маркетплейса.
+      const rate = (store.usnProfitRate ?? rules.usnDefaultProfitRate * 100) / 100
+      // Взносы ИП, подлежащие уплате за налоговый период, могут включаться
+      // в расходы по УСН 15%; здесь это отражается отдельно, чтобы не
+      // смешивать их с комиссиями и логистикой маркетплейса.
       taxBase = Math.max(
         0,
         revenue - marketplaceExpenses - (store.hasEmployees ? 0 : insurance.total),
       )
       taxGross = taxBase * rate
-      minTax = revenue * TAX_2026.usnMinimumTaxRate
+      minTax = revenue * rules.usnMinimumTaxRate
       taxDue = Math.max(taxGross, revenue > 0 ? minTax : 0)
-      const vatCalc = calcUsnVat(store, revenue)
+      const vatCalc = calcUsnVat(store, revenue, year)
       vat = vatCalc.vat
       vatRate = vatCalc.rate
       vatMode = vatCalc.mode
@@ -252,13 +351,19 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
       if (store.legalForm === 'ooo') {
         taxDue = taxBase * 0.25
         taxGross = taxDue
-        notes.push('ОСНО для ООО: налог на прибыль 25% в 2026 году.')
+        notes.push(`ОСНО для ООО: налог на прибыль 25% в ${year} году.`)
       } else {
-        taxDue = calcIpNdfl2026(taxBase)
+        const ndfl = calcIpNdflForYear(taxBase, year)
+        taxDue = ndfl.amount
         taxGross = taxDue
         notes.push(
-          'ОСНО для ИП: НДФЛ с предпринимательского дохода по прогрессивной шкале 13–22% в 2026 году.',
+          `ОСНО для ИП: НДФЛ с предпринимательского дохода по прогрессивной шкале 13–22% в ${ndfl.appliedYear} году.`,
         )
+        if (ndfl.isFallback) {
+          notes.push(
+            `Прогрессивная шкала НДФЛ на ${year} год ещё не добавлена — применена шкала ${ndfl.appliedYear} года.`,
+          )
+        }
       }
       vat = (revenue * 0.22) / 1.22
       vatRate = 0.22
@@ -269,7 +374,7 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
 
   if (
     (store.regime === 'usn6' || store.regime === 'usn15') &&
-    revenue > TAX_2026.usnVatExemptionThreshold
+    revenue > rules.usnVatExemptionThreshold
   ) {
     if (vatRate === 0.05) notes.push('НДС 5%: специальная ставка без вычета входного НДС.')
     if (vatRate === 0.07) notes.push('НДС 7%: специальная ставка без вычета входного НДС.')
@@ -278,7 +383,7 @@ export function calcTax(store: Store, ops: Operation[]): TaxBreakdown {
         'НДС 22%: при выборе общей ставки возможны вычеты входного НДС при соблюдении условий НК РФ.',
       )
   } else if (store.regime === 'usn6' || store.regime === 'usn15') {
-    notes.push('При доходе до 20 млн ₽ в 2026 году действует освобождение от НДС по УСН.')
+    notes.push(`При доходе до 20 млн ₽ в ${year} году действует освобождение от НДС по УСН.`)
   }
 
   if (store.regime === 'psn' && store.patentPotentialIncome == null) {
@@ -324,7 +429,7 @@ export function quarterlyAdvances(store: Store, ops: Operation[], year: number) 
   let paid = 0
   return quarters.map((q) => {
     const periodOps = ops.filter((o) => o.date >= q.from && o.date <= q.to)
-    const calc = calcTax(store, periodOps)
+    const calc = calcTax(store, periodOps, year)
     const advance = Math.max(0, calc.taxDue - paid)
     paid += advance
     return { ...q, calc, advance }

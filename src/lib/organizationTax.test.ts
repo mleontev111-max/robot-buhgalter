@@ -74,4 +74,26 @@ describe('совмещение ПСН и УСН на уровне Organization',
     expect(result.lines.find((line) => line.storeId === 'psn')?.taxAfterInsurance).toBe(0)
     expect(result.lines.find((line) => line.storeId === 'usn')?.taxAfterInsurance).toBe(120_000)
   })
+
+  it('для периода в году без заведённых правил считает по последнему известному году и предупреждает', () => {
+    // Те же операции, но датированы годом, для которого правила ещё не заведены —
+    // чтобы страховая база (доход в периоде) совпадала с известным годом 1-в-1.
+    const operations2027 = operations.map((op) => ({ ...op, date: '2027-05-01' }))
+
+    const known = calcOrganizationTax('ip-1', stores, operations, '2026-01-01', '2026-12-31', 'usn')
+    const fallback = calcOrganizationTax(
+      'ip-1',
+      stores,
+      operations2027,
+      '2027-01-01',
+      '2027-12-31',
+      'usn',
+    )
+
+    expect(fallback.totalInsurance).toBe(known.totalInsurance)
+    expect(fallback.notes.some((n) => n.includes('2027') && n.includes('ещё не добавлены'))).toBe(
+      true,
+    )
+    expect(known.notes).toEqual([])
+  })
 })
