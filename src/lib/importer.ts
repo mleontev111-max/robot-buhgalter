@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import type { MarketplaceId, Operation } from '@/types'
 
 export interface ParsedReport {
@@ -71,6 +70,10 @@ const toDate = (v: string | undefined): string | null => {
 }
 
 export async function parseReportFile(file: File): Promise<ParsedReport> {
+  // xlsx (SheetJS) — самая тяжёлая зависимость проекта, а нужна только в
+  // момент реального импорта файла. Динамический импорт держит её вне
+  // основного бандла, чтобы она не грузилась при каждом открытии приложения.
+  const XLSX = await import('xlsx')
   const buf = await file.arrayBuffer()
   let text = new TextDecoder('utf-8').decode(buf)
   if (text.includes('�')) text = new TextDecoder('windows-1251').decode(buf)

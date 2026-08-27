@@ -1,22 +1,27 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import {
   Building2,
   Calculator,
   Leaf,
   LayoutDashboard,
+  Loader2,
   Plug,
   ReceiptText,
   Settings,
 } from 'lucide-react'
 import { useAppState } from '@/lib/storage'
 import type { Section } from '@/types'
-import Dashboard from '@/sections/Dashboard'
-import Organizations from '@/sections/Organizations'
-import Operations from '@/sections/Operations'
-import TaxReport from '@/sections/TaxReport'
-import Connections from '@/sections/Connections'
-import SettingsSection from '@/sections/Settings'
 import { cn } from '@/lib/utils'
+
+// Каждый раздел грузится своим чанком — пользователь почти всегда работает
+// в одном разделе за раз, незачем тянуть код всех шести при первой загрузке
+// (особенно Dashboard с recharts и Operations с диалогом импорта).
+const Dashboard = lazy(() => import('@/sections/Dashboard'))
+const Organizations = lazy(() => import('@/sections/Organizations'))
+const Operations = lazy(() => import('@/sections/Operations'))
+const TaxReport = lazy(() => import('@/sections/TaxReport'))
+const Connections = lazy(() => import('@/sections/Connections'))
+const SettingsSection = lazy(() => import('@/sections/Settings'))
 
 const NAV = [
   { id: 'dashboard' as Section, label: 'Дашборд', icon: LayoutDashboard },
@@ -73,19 +78,29 @@ export default function Home() {
       </aside>
 
       <main className="min-w-0 flex-1 p-6 lg:p-8">
-        {section === 'dashboard' && <Dashboard state={app.state} setState={app.setState} />}
-        {section === 'organizations' && <Organizations state={app.state} setState={app.setState} />}
-        {section === 'operations' && <Operations state={app.state} setState={app.setState} />}
-        {section === 'taxes' && <TaxReport state={app.state} />}
-        {section === 'connections' && <Connections state={app.state} setState={app.setState} />}
-        {section === 'settings' && (
-          <SettingsSection
-            state={app.state}
-            setState={app.setState}
-            resetToDemo={app.resetToDemo}
-            clearAll={app.clearAll}
-          />
-        )}
+        <Suspense
+          fallback={
+            <div className="flex h-40 items-center justify-center text-stone-400">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          }
+        >
+          {section === 'dashboard' && <Dashboard state={app.state} setState={app.setState} />}
+          {section === 'organizations' && (
+            <Organizations state={app.state} setState={app.setState} />
+          )}
+          {section === 'operations' && <Operations state={app.state} setState={app.setState} />}
+          {section === 'taxes' && <TaxReport state={app.state} />}
+          {section === 'connections' && <Connections state={app.state} setState={app.setState} />}
+          {section === 'settings' && (
+            <SettingsSection
+              state={app.state}
+              setState={app.setState}
+              resetToDemo={app.resetToDemo}
+              clearAll={app.clearAll}
+            />
+          )}
+        </Suspense>
       </main>
     </div>
   )
