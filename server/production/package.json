@@ -8,7 +8,11 @@
     "zod": "4.3.5"
   },
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:migrate": "node migrate.mjs",
+    "server:production": "node index.mjs",
+    "auth:bootstrap": "node bootstrap-owner.mjs",
+    "test:db": "node db.integration.mjs"
   },
   "devDependencies": {
     "vitest": "^4.1.11"

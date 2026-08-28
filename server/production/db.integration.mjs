@@ -2,9 +2,18 @@ import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import pg from 'pg'
 import { hashPassword } from './security.mjs'
+
+// Self-relative, like migrate.mjs's own directory lookup — so this script
+// works whether it's invoked as `node server/production/db.integration.mjs`
+// from the repo root (as documented) or as `npm run test:db` from inside
+// server/production/ (where npm sets CWD to the package directory).
+const here = dirname(fileURLToPath(import.meta.url))
+const migrateScript = join(here, 'migrate.mjs')
+const appRoleGrantsSql = join(here, 'sql/app-role-grants.sql')
 
 const suffix = randomBytes(5).toString('hex')
 const container = `robot-buhgalter-pg-test-${suffix}`
@@ -75,13 +84,13 @@ try {
   await waitForDatabase(adminUrl)
 
   const migrationEnv = { ...process.env, DATABASE_URL: adminUrl, DATABASE_SSL: 'disable' }
-  execFileSync(process.execPath, ['server/production/migrate.mjs'], { stdio: 'inherit', env: migrationEnv })
-  execFileSync(process.execPath, ['server/production/migrate.mjs'], { stdio: 'inherit', env: migrationEnv })
+  execFileSync(process.execPath, [migrateScript], { stdio: 'inherit', env: migrationEnv })
+  execFileSync(process.execPath, [migrateScript], { stdio: 'inherit', env: migrationEnv })
 
   const admin = new pg.Pool({ connectionString: adminUrl })
   const appPassword = `app-${randomBytes(16).toString('hex')}`
   await admin.query(`CREATE ROLE robot_buhgalter_app LOGIN PASSWORD '${appPassword}'`)
-  await admin.query(await readFile('server/production/sql/app-role-grants.sql', 'utf8'))
+  await admin.query(await readFile(appRoleGrantsSql, 'utf8'))
 
   const bootstrap = await admin.connect()
   try {
