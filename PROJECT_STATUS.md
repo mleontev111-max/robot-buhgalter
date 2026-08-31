@@ -79,6 +79,40 @@ These are operational documentation, not a place for secrets. Passwords, tokens,
 
 Before any production change, re-check the live server. A dated server snapshot is historical evidence, not proof that nothing changed later.
 
+## Production PostgreSQL location
+
+The onboarding-safe physical/runtime location is intentionally documented here so a new contributor does not have to guess:
+
+- host: shared Hetzner server with hostname `ai-vpn`;
+- PostgreSQL container: `project2-postgres`;
+- PostgreSQL major version: `16` (last operational verification recorded 16.15);
+- Docker network: `apps-net`;
+- database port: internal `5432/tcp` only;
+- PostgreSQL has **no public host port** and must never be exposed directly to the Internet;
+- Robot production API reaches PostgreSQL over the private Docker network; the API container is `robot-buhgalter-api-1` and is bound to host localhost on `127.0.0.1:8788`.
+
+The database name, usernames, passwords and full `DATABASE_URL` are not duplicated in Git. If one of those values is required for authorized production work, obtain it through the production secret acquisition procedure below. Before a risky production change, re-verify the current container/network names against the private `SERVER_MAP.md` and the live host rather than assuming a dated fact is still current.
+
+## Production secret acquisition procedure
+
+Production secret **values are never stored in GitHub**. The canonical live runtime secret source for Robot-Buhgalter is the server-side environment file:
+
+`/opt/apps/robot-buhgalter/.env`
+
+on the shared Hetzner host `ai-vpn`. The compose file is `/opt/apps/robot-buhgalter/compose.yml`.
+
+For the recovered production backend, runtime configuration names include `DATABASE_URL`, `CREDENTIALS_ENCRYPTION_KEY`, `DATABASE_SSL` and `PORT`. `BOOTSTRAP_EMAIL`, `BOOTSTRAP_PASSWORD`, `BOOTSTRAP_DISPLAY_NAME`, `BOOTSTRAP_ORGANIZATION_NAME` and `BOOTSTRAP_LEGAL_FORM` are only for an explicitly approved initial-owner bootstrap; they are not routine onboarding secrets.
+
+Authorized contributor procedure:
+
+1. obtain explicit owner approval for production access;
+2. obtain owner-approved SSH-key access to `ai-vpn` (normal admin path is the `mihail` account with `sudo`) rather than asking for secrets to be pasted into GitHub, chat, email or a checkpoint;
+3. on the host, inspect only the specific required variable/value from `/opt/apps/robot-buhgalter/.env` or the running service configuration; do **not** copy or print the whole `.env` into logs/chat;
+4. keep any required value only in the approved local/process secret mechanism and redact it from diagnostics;
+5. if SSH/production access has not been granted, stop and ask the project owner to grant access. Do not invent replacement production credentials, rotate secrets, or create a new production database as an onboarding shortcut.
+
+Marketplace API credentials already stored by the production application are encrypted in PostgreSQL and are **not** distributed to contributors as onboarding secrets. Use the application/backend credential-management flow; do not extract them from the database merely to start development.
+
 ## Source-of-truth boundaries
 
 - **Current canonical frontend/main source:** this repository `main`.
