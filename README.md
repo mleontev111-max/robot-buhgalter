@@ -12,7 +12,17 @@
 2. [`AGENTS.md`](AGENTS.md) — правила безопасной работы;
 3. последний checkpoint из [`checkpoints/`](checkpoints/).
 
-Если задача касается production backend, дополнительно прочитать draft PR #3 `Recovery: restore production backend from server backup`. Операционные подробности live-сервера и секреты намеренно не хранятся в публичном репозитории.
+Если задача касается production backend, дополнительно прочитать текущий draft PR #3 `Recovery: restore production backend from server backup` и проверить его фактический HEAD непосредственно в GitHub. Не полагаться на SHA, записанный в статическом status-файле.
+
+### Production operational source of truth
+
+Для авторизованных участников канонические operational docs находятся в приватном репозитории `mleontev111-max/thechai_space`:
+
+- `docs/server/ROBOT_BUHGALTER_PRODUCTION.md` — факты по Robot-Buhgalter production backend;
+- `docs/server/SERVER_MAP.md` — текущая карта Hetzner/server infrastructure;
+- `docs/server/RUNBOOK.md` — эксплуатационные/recovery процедуры.
+
+Эти документы могут содержать только несекретные operational facts. Passwords, tokens, private keys, `.env`, database connection strings и другие секреты в Git не переносить.
 
 ## Архитектура сейчас
 
@@ -33,8 +43,6 @@ npm run server
 Фактический production backend уже существует и использует PostgreSQL, authentication, tenant isolation и server-side encrypted marketplace credentials.
 
 Его исходники были восстановлены из работающего production image и находятся в draft PR #3 в `server/production/`. PR ещё **не готов к merge/deploy**: до этого необходимо собрать test-only Docker image из Git и пройти Docker-mode HTTP/PostgreSQL integration gate.
-
-Production infrastructure details находятся в закрытой operational documentation, доступной только авторизованным участникам. Не переносить passwords, tokens, private keys, connection strings или другие секреты в этот публичный репозиторий.
 
 ## Что умеет frontend
 
@@ -59,7 +67,13 @@ npm ci
 npm run dev
 ```
 
-Frontend локально запускается Vite (обычно `http://localhost:5173`).
+Frontend локально запускается на:
+
+```text
+http://localhost:3000
+```
+
+Порт `3000` закреплён в `vite.config.ts` и является каноническим local frontend port.
 
 Если нужен local read-only sync server, во втором терминале:
 
@@ -69,7 +83,9 @@ npm run server
 
 Local sync server: `http://localhost:8787`.
 
-> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте `PROJECT_STATUS.md` и PR #3.
+Его default CORS разрешает `http://localhost:3000` и `http://127.0.0.1:3000`. При нестандартном origin задайте `ALLOWED_ORIGINS` явно.
+
+> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте `PROJECT_STATUS.md` и текущему состоянию PR #3.
 
 ## Проверка
 
@@ -97,17 +113,19 @@ Production credentials должны храниться только server-side 
 - не считать `server/index.mjs` production backend;
 - не merge PR #3 только на основании unit/local DB tests;
 - не менять production database вручную;
+- не менять DNS/Caddy/UFW в рамках recovery gate;
 - не менять привязку `kolyman.ru` без явного решения владельца проекта.
 
 ## Current next action
 
 **Закрыть воспроизводимость production backend через recovery PR #3:**
 
-1. собрать test-only `linux/amd64` Docker image из PR #3;
-2. не трогать текущий live image/container;
-3. прогнать Docker-mode PostgreSQL/HTTP integration test;
-4. проверить `/health`, `/ready`, login, organizations и logout/revoked-session behavior;
-5. записать image tag, commit SHA и PASS/FAIL;
-6. только после PASS решать перевод PR из draft и merge.
+1. проверить фактический текущий HEAD PR #3 в GitHub;
+2. собрать test-only `linux/amd64` Docker image из этого HEAD;
+3. не трогать текущий live image/container;
+4. прогнать Docker-mode PostgreSQL/HTTP integration test;
+5. проверить `/health`, `/ready`, login, organizations и logout/revoked-session behavior;
+6. записать image tag, full commit SHA, environment и PASS/FAIL;
+7. только после PASS решать перевод PR из draft и merge.
 
 Подробное текущее состояние — в [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
