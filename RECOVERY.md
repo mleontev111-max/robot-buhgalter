@@ -39,7 +39,7 @@ git fetch origin main recovery/production-backend-2026-08-27
 
 ## Потеря/компрометация `.env` или database credentials
 
-- Server paths последнего подтверждения: `/opt/apps/robot-buhgalter/.env` и `.migrate.env`.
+- Runtime и migration secrets на дату последней проверки хранились раздельно server-side; exact paths должны находиться в private operational inventory.
 - Внешнее резервное хранилище secrets: **UNCONFIRMED/TODO**.
 - При компрометации: ротация отдельных database credentials и application secrets, проверка logs/audit, controlled container replacement; точная утверждённая процедура **TODO**.
 - При потере `CREDENTIALS_ENCRYPTION_KEY` восстановление marketplace credentials возможно только из подтверждённой защищённой копии. Если её нет, credentials нужно повторно получить у провайдеров и заменить.
@@ -56,13 +56,7 @@ git fetch origin main recovery/production-backend-2026-08-27
 
 ## Сбой PostgreSQL/data loss
 
-Последняя документированная схема backup на 2026-08-25:
-
-- `/opt/apps/robot-buhgalter/backups/`;
-- custom-format `pg_dump` + `.sha256`;
-- daily cron `03:20 UTC`;
-- retention 14 days;
-- restore выполнялся в отдельную временную database с `--exit-on-error --no-owner --role robot_buhgalter_owner`.
+Последняя документированная схема backup на 2026-08-25 использовала custom-format `pg_dump`, SHA-256, automated schedule и retention. Restore был проверен в отдельной временной database с fail-fast/no-owner semantics.
 
 Перед recovery повторно проверить текущие script, cron, latest successful dump и checksum. Восстанавливать сначала в новую изолированную database, проверить migrations, table counts, RLS и least privileges. Переключение production на restore требует отдельного подтверждения.
 

@@ -7,6 +7,9 @@
 ```bash
 sed -n '1,240p' PROJECT_STATE.md
 sed -n '1,240p' ACCESS_MAP.md
+sed -n '1,240p' README.md
+sed -n '1,240p' AGENTS.md
+sed -n '1,240p' PROJECT_STATUS.md
 latest_checkpoint="$(find checkpoints -maxdepth 1 -type f -name 'checkpoint_*.md' -print | sort | tail -1)"
 test -n "$latest_checkpoint" && sed -n '1,280p' "$latest_checkpoint"
 git status --short --branch
@@ -103,16 +106,14 @@ Pass должен подтвердить тестируемым образом: 
 
 ## 4. Read-only server verification
 
-До любого будущего rollout сначала подтвердить доступ и target по `ACCESS_MAP.md`. После входа разрешённый диагностический минимум:
+До любого будущего rollout сначала подтвердить target по private operational inventory и доступ по `ACCESS_MAP.md`. Пример диагностического минимума после входа:
 
 ```bash
 hostname
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
-docker inspect robot-buhgalter-api-1 --format '{{.Config.Image}} {{.State.Status}} {{.State.Health.Status}}'
-curl --fail --silent --show-error http://127.0.0.1:8788/ready
 ```
 
-Не читать `.env` values и не выполнять `docker compose up`, restart, migration или database write в рамках read-only проверки.
+Container name и loopback readiness URL брать только из подтверждённого private inventory. Не читать `.env` values и не выполнять `docker compose up`, restart, migration или database write в рамках read-only проверки.
 
 ## 5. Завершение работы
 

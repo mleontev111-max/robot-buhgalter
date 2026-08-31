@@ -29,12 +29,12 @@ Repository path: TODO
 Docker Engine verification date: TODO
 ```
 
-## Hetzner SSH
+## Production host access
 
-- Hostname/IP, последнее подтверждение 2026-08-25: `ai-vpn` / `178.104.188.123`.
 - SSH user, последнее подтверждение 2026-08-25: `root`.
 - Password authentication на дату проверки: disabled.
 - Аутентификация: SSH key.
+- Hostname/IP: хранить в private operational inventory; его утверждённое место **UNCONFIRMED/TODO**.
 - Где находится действующий private SSH key: **UNCONFIRMED/TODO**.
 - Где находится защищённая резервная копия private key: **UNCONFIRMED/TODO**.
 - Кто имеет доступ к Hetzner account/console: **UNCONFIRMED/TODO**.
@@ -42,11 +42,7 @@ Docker Engine verification date: TODO
 
 ## Server-side secrets
 
-Последнее подтверждение путей — 2026-08-25:
-
-- Runtime configuration: `/opt/apps/robot-buhgalter/.env` (`600 root:root` на дату проверки).
-- Migration configuration: `/opt/apps/robot-buhgalter/.migrate.env` (`600 root:root` на дату проверки).
-- PostgreSQL project2 secrets: `/opt/apps/project2/postgres/.env` (`600` на дату проверки); не относится к Robot-Buhgalter и не должен читаться/изменяться без отдельной необходимости.
+Последнее подтверждение — 2026-08-25: runtime и migration configuration хранились раздельно server-side с доступом только root. Точные paths относятся к private operational documentation и не публикуются в repository.
 - Значения секретов не фиксировались и не должны фиксироваться в Git, checkpoints, chat, shell history или frontend.
 - Отдельное внешнее secret vault/backup для Robot-Buhgalter: **UNCONFIRMED/TODO**.
 - Recovery владельца/migrator/app database credentials: **UNCONFIRMED/TODO**; требуется заранее утверждённая rotation procedure.

@@ -11,9 +11,9 @@
 
 ## Сверка GitHub
 
-- `main`: `57f9ccfb7c9d95f65109511b66f31f7f00562f46`.
-- Recovery: `bee7919529ce86c4cdad9b2b1d9fbae2e2f1e963` до документационного commit.
-- PR #3: open, draft, mergeable, clean; recovery → main.
+- `main` при начальной сверке: `57f9ccfb7c9d95f65109511b66f31f7f00562f46`; во время работы обновился до `b48945ba58d338fbdbeb8c1552f22eb47d93ff85` и был синхронизирован в recovery.
+- Recovery: `bee7919529ce86c4cdad9b2b1d9fbae2e2f1e963` до первого документационного commit; первый source-of-truth commit: `34ee5e0f4cda8dec11ff8d008d707007b5c64cd6`.
+- PR #3: open, draft, mergeable; после обновления checks пересчитывались; recovery → main.
 - PR #3 содержит 3 commits и 23 changed files до документационного commit.
 - Последний подтверждённый blocker: образ из `Dockerfile.backend` ещё не был реально собран и проверен Docker-mode PostgreSQL + HTTP integration flow.
 
@@ -46,7 +46,7 @@
 4. Где находится действующий Hetzner private SSH key и его защищённая резервная копия.
 5. Кто владеет Hetzner account/console и точная recovery procedure.
 6. Есть ли внешнее защищённое backup/vault для `.env` и `CREDENTIALS_ENCRYPTION_KEY`.
-7. Текущее состояние Hetzner после последней проверки 2026-08-25.
+7. Текущее состояние Hetzner после последней проверки 2026-08-25 и утверждённое private operational inventory для sensitive details.
 8. Production API hostname/DNS.
 9. Подтверждённый rollback image/tag.
 10. Off-site backup policy и RPO/RTO.

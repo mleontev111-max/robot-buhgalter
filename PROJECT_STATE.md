@@ -4,22 +4,22 @@
 
 ## Обязательный порядок начала работы
 
-1. Прочитать `PROJECT_STATE.md`.
-2. Прочитать `ACCESS_MAP.md`.
+1. Прочитать `README.md`, `AGENTS.md` и `PROJECT_STATUS.md`.
+2. Прочитать `PROJECT_STATE.md` и `ACCESS_MAP.md`.
 3. Прочитать самый новый файл в `checkpoints/`.
 4. Сверить GitHub: `main`, активную ветку, открытый PR и проверки.
 5. Если GitHub расходится с документами, считать GitHub фактом, остановить выполнение изменений и сначала обновить документы.
 
 ## Снимок состояния
 
-- Проверено: **2026-08-30 20:57 MSK**.
+- Период проверки: **2026-08-30—2026-08-31 MSK**.
 - Репозиторий: `mleontev111-max/robot-buhgalter`.
 - Default branch: `main`.
-- `main`: `57f9ccfb7c9d95f65109511b66f31f7f00562f46`.
+- `main`: `b48945ba58d338fbdbeb8c1552f22eb47d93ff85` (`docs: align Robot-Buhgalter Project Ready v0`).
 - Активная recovery-ветка: `recovery/production-backend-2026-08-27`.
-- Recovery HEAD до этого документационного изменения: `bee7919529ce86c4cdad9b2b1d9fbae2e2f1e963`.
+- Recovery HEAD после первого source-of-truth commit и до синхронизации с новым `main`: `34ee5e0f4cda8dec11ff8d008d707007b5c64cd6`.
 - PR: [#3 — Recovery: restore production backend from server backup](https://github.com/mleontev111-max/robot-buhgalter/pull/3).
-- PR #3: `OPEN`, `DRAFT`, GitHub сообщает `mergeable=true`, `mergeable_state=clean`; base — `main`, head — recovery-ветка.
+- PR #3: `OPEN`, `DRAFT`; после первого documentation push GitHub сообщал `mergeable=true`, а проверки пересчитывались (`mergeable_state=unstable`). Base — `main`, head — recovery-ветка.
 - Production не изменялся в рамках документирования.
 
 ## Что подтверждено для PR #3
