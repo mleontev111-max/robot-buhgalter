@@ -1,0 +1,19 @@
+{
+  "standard_version": "1.0",
+  "project": "mleontev111-max/robot-buhgalter",
+  "entrypoint": "README.md",
+  "status_file": "PROJECT_STATUS.md",
+  "agent_protocol": "AGENTS.md",
+  "questions": {
+    "project": {"source": "README.md", "contains": "Веб-приложение для расчёта и контроля налогов"},
+    "current_state": {"source": "PROJECT_STATUS.md", "contains": "What is verified on main"},
+    "local_services": {"source": "README.md", "contains": "Local / legacy sync server"},
+    "remote_services": {"source": "PROJECT_STATUS.md", "contains": "Current production reality"},
+    "data": {"source": "PROJECT_STATUS.md", "contains": "Source-of-truth boundaries"},
+    "secrets": {"source": "README.md", "contains": "Passwords, tokens, private keys"},
+    "start": {"source": "README.md", "contains": "Clean local start"},
+    "verify": {"source": "PROJECT_STATUS.md", "contains": "Verification commands for current main"},
+    "must_not_change": {"source": "PROJECT_STATUS.md", "contains": "Safety rules"},
+    "next_action": {"source": "PROJECT_STATUS.md", "contains": "Exact NEXT ACTION"}
+  }
+}
