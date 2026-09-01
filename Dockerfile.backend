@@ -1,0 +1,43 @@
+# Reproducible build for the production API (Hetzner container
+# robot-buhgalter-api-1). Facts confirmed against the live image via
+# `docker inspect`/`docker history` (see PR #3 discussion):
+#   platform: linux/amd64
+#   base OS: Alpine 3.23.4
+#   Node: v20.20.2, npm 10.8.2
+#   WORKDIR /app
+#   ENTRYPOINT ["docker-entrypoint.sh"], CMD ["node","server/production/index.mjs"]
+#   EXPOSE 8788
+#   runtime user/group: app, files copied --chown=app:app
+#
+# Unlike the old image (per `docker history`, which showed a prebuilt
+# node_modules copied in wholesale), this Dockerfile installs
+# dependencies with `npm ci --omit=dev` so the build is reproducible
+# from source + lockfile instead of from an opaque copied directory.
+#
+# Build context is the REPOSITORY ROOT (not server/production/), because
+# CMD's path (server/production/index.mjs) and db.integration.mjs's own
+# relative paths assume /app == the repo root layout.
+#
+# Build (tag tied to the exact commit under test):
+#   docker build --platform linux/amd64 -f Dockerfile.backend \
+#     -t robot-buhgalter-api:$(git rev-parse --short HEAD) .
+
+FROM --platform=linux/amd64 node:20.20.2-alpine3.23
+
+RUN addgroup -S app && adduser -S app -G app
+
+WORKDIR /app
+
+# Install dependencies first (own manifest only) so source-only changes
+# don't invalidate the npm ci layer.
+COPY --chown=app:app server/production/package.json server/production/package-lock.json ./server/production/
+RUN cd server/production && npm ci --omit=dev
+
+COPY --chown=app:app server/production/ ./server/production/
+COPY --chown=app:app server/production/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+USER app
+EXPOSE 8788
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["node", "server/production/index.mjs"]
