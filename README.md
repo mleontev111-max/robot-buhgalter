@@ -6,13 +6,29 @@
 
 ## Start here
 
-Новый участник или AI-агент перед любой работой обязан прочитать:
+Для любого нового AI/helper-сеанса первым файлом является [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md).
 
-1. [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — где проект находится сейчас и какой следующий шаг;
-2. [`AGENTS.md`](AGENTS.md) — правила безопасной работы;
-3. последний checkpoint из [`checkpoints/`](checkpoints/).
+До любого ответа по проекту, выбора задачи, плана, code review, изменения кода, deployment-предложения или попытки повторить старую работу нужно пройти Resume Gate:
 
-Если задача касается production backend, дополнительно прочитать draft PR #3 `Recovery: restore production backend from server backup`. Операционные подробности live-сервера и секреты намеренно не хранятся в публичном репозитории.
+1. `PROJECT_STATE.json` — merged-main state;
+2. `ACTIVE_WORK.json` — важная незамерженная работа в PR/ветках;
+3. `CHECKPOINT_INDEX.json` — canonical checkpoint pointers;
+4. `npm run resume` / `python3 tools/project_resume.py`;
+5. соответствующий track/workstream current source.
+
+`PROJECT_STATUS.md` остаётся стабильным описанием архитектуры, production reality, safety и verification, но не должен переопределять machine current-state layer.
+
+Если задача касается production backend, дополнительно открыть текущий draft PR #3 `Recovery: restore production backend from server backup` и проверить его фактический HEAD непосредственно в GitHub. Не полагаться на SHA из старого текста или чата.
+
+### Production operational source of truth
+
+Для авторизованных участников канонические operational docs находятся в приватном репозитории `mleontev111-max/thechai_space`:
+
+- `docs/server/ROBOT_BUHGALTER_PRODUCTION.md` — факты по Robot-Buhgalter production backend;
+- `docs/server/SERVER_MAP.md` — текущая карта Hetzner/server infrastructure;
+- `docs/server/RUNBOOK.md` — эксплуатационные/recovery процедуры.
+
+Эти документы могут содержать только несекретные operational facts. Passwords, tokens, private keys, `.env`, database connection strings и другие секреты в Git не переносить.
 
 ## Архитектура сейчас
 
@@ -34,8 +50,6 @@ npm run server
 
 Его исходники были восстановлены из работающего production image и находятся в draft PR #3 в `server/production/`. PR ещё **не готов к merge/deploy**: до этого необходимо собрать test-only Docker image из Git и пройти Docker-mode HTTP/PostgreSQL integration gate.
 
-Production infrastructure details находятся в закрытой operational documentation, доступной только авторизованным участникам. Не переносить passwords, tokens, private keys, connection strings или другие секреты в этот публичный репозиторий.
-
 ## Что умеет frontend
 
 - дашборд по выручке, расходам маркетплейсов и налогам;
@@ -56,10 +70,17 @@ Production infrastructure details находятся в закрытой operati
 git clone https://github.com/mleontev111-max/robot-buhgalter.git
 cd robot-buhgalter
 npm ci
+npm run resume
 npm run dev
 ```
 
-Frontend локально запускается Vite (обычно `http://localhost:5173`).
+Frontend локально запускается на:
+
+```text
+http://localhost:3000
+```
+
+Порт `3000` закреплён в `vite.config.ts` и является каноническим local frontend port.
 
 Если нужен local read-only sync server, во втором терминале:
 
@@ -69,7 +90,9 @@ npm run server
 
 Local sync server: `http://localhost:8787`.
 
-> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте `PROJECT_STATUS.md` и PR #3.
+Его default CORS разрешает `http://localhost:3000` и `http://127.0.0.1:3000`. При нестандартном origin задайте `ALLOWED_ORIGINS` явно.
+
+> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте machine resume state и текущему состоянию PR #3.
 
 ## Проверка
 
@@ -97,17 +120,11 @@ Production credentials должны храниться только server-side 
 - не считать `server/index.mjs` production backend;
 - не merge PR #3 только на основании unit/local DB tests;
 - не менять production database вручную;
+- не менять DNS/Caddy/UFW в рамках recovery gate;
 - не менять привязку `kolyman.ru` без явного решения владельца проекта.
 
 ## Current next action
 
-**Закрыть воспроизводимость production backend через recovery PR #3:**
+Не определять следующий шаг из этого narrative-блока без Resume Gate. Canonical ONE NEXT ACTION находится в `PROJECT_STATE.json` и связанном current checkpoint/workstream state.
 
-1. собрать test-only `linux/amd64` Docker image из PR #3;
-2. не трогать текущий live image/container;
-3. прогнать Docker-mode PostgreSQL/HTTP integration test;
-4. проверить `/health`, `/ready`, login, organizations и logout/revoked-session behavior;
-5. записать image tag, commit SHA и PASS/FAIL;
-6. только после PASS решать перевод PR из draft и merge.
-
-Подробное текущее состояние — в [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+Стабильное архитектурное и production-описание — в [`PROJECT_STATUS.md`](PROJECT_STATUS.md).

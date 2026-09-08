@@ -1,0 +1,19 @@
+{
+  "standard_version": "1.0",
+  "project": "mleontev111-max/robot-buhgalter",
+  "entrypoint": "START_HERE_FOR_AI.md",
+  "status_file": "PROJECT_STATE.json",
+  "agent_protocol": "AGENTS.md",
+  "questions": {
+    "project": {"source": "README.md", "contains": "Веб-приложение для расчёта и контроля налогов"},
+    "current_state": {"source": "PROJECT_STATE.json", "contains": "default_resume_track"},
+    "local_services": {"source": "README.md", "contains": "Local / legacy sync server"},
+    "remote_services": {"source": "PROJECT_STATUS.md", "contains": "Current production reality"},
+    "data": {"source": "PROJECT_STATUS.md", "contains": "Production PostgreSQL location"},
+    "secrets": {"source": "PROJECT_STATUS.md", "contains": "Production secret acquisition procedure"},
+    "start": {"source": "START_HERE_FOR_AI.md", "contains": "Mandatory preflight"},
+    "verify": {"source": "PROJECT_STATUS.md", "contains": "Verification commands for current main"},
+    "must_not_change": {"source": "PROJECT_STATUS.md", "contains": "Safety rules"},
+    "next_action": {"source": "PROJECT_STATE.json", "contains": "one_next_action"}
+  }
+}
