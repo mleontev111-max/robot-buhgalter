@@ -2,15 +2,18 @@
 
 These rules apply to every human or AI contributor working in this repository.
 
-## Before any change
+## Mandatory resume gate — before any answer/plan/action
 
-1. Read `README.md`.
-2. Read `PROJECT_STATUS.md`.
-3. Read the latest file in `checkpoints/`.
-4. If the task touches production backend/recovery, read draft PR #3 and check its **current GitHub HEAD**; do not trust a stale SHA copied into a living status file.
-5. For live/server work, read the exact private operational docs listed below.
-6. Check `git status`, current branch and current HEAD before editing.
-7. Confirm whether the task is frontend/local MVP work or production-backend work. Do not mix the two accidentally.
+Before **any project answer, status summary, task choice, plan, code review, code change, deployment suggestion, or attempt to reconstruct prior work**:
+
+1. read `START_HERE_FOR_AI.md`;
+2. establish the exact Git branch/HEAD and refresh `origin` when a local clone is available;
+3. read `PROJECT_STATE.json`, `ACTIVE_WORK.json`, and `CHECKPOINT_INDEX.json`;
+4. run `npm run resume` or `python3 tools/project_resume.py`;
+5. read the selected track/workstream current source and exact evidence;
+6. for “didn’t we already do this?” questions, inspect `MILESTONE_INDEX.json` / `docs/WORK_DONE_INDEX.md` before proposing reconstruction.
+
+If the resume command or Project Ready Guard reports BLOCKER/DRIFT, stop feature/deployment work even when ordinary CI is green. Repair continuity first.
 
 ## Architecture boundary
 
@@ -45,7 +48,8 @@ A dated server snapshot must be re-verified before a production change.
 - change the `kolyman.ru` domain binding without explicit owner approval;
 - touch neighboring `n8n` or `amnezia-awg2` services unless the task explicitly targets them;
 - weaken tests/lint/security checks just to make CI green;
-- overwrite historical checkpoints to make current documentation look cleaner.
+- overwrite historical checkpoints to make current documentation look cleaner;
+- continue feature/deployment work while Resume/Project Ready continuity is red.
 
 ## Current production-backend gate
 
@@ -71,15 +75,17 @@ If production backend changed, also run the relevant `server/production` tests a
 
 ## Session completion protocol
 
-Before declaring work complete:
+Before declaring meaningful work complete:
 
 1. review `git diff`;
 2. run the required checks;
 3. keep unrelated work out of the commit;
 4. commit logical changes;
 5. push the branch/commit to GitHub rather than leaving important work only on one computer;
-6. update `PROJECT_STATUS.md` when current state, blocker or NEXT ACTION changes, but do not hardcode moving PR/branch SHAs there;
-7. add a new checkpoint for a meaningful milestone instead of rewriting old checkpoints;
+6. update the correct durable current source:
+   - merged-main milestone → dated checkpoint + `PROJECT_STATE.json` + `CHECKPOINT_INDEX.json`;
+   - unmerged PR/branch work → `docs/workstreams/<workstream>/STATE.md` + `ACTIVE_WORK.json` on that branch;
+7. update `MILESTONE_INDEX.json` / `docs/WORK_DONE_INDEX.md` when a durable completed milestone should be easy to find later;
 8. report commit SHA, checks performed, PASS/FAIL and blockers.
 
 If something is unknown, write `MISSING` / `TO VERIFY` / `INCONSISTENT` rather than guessing.

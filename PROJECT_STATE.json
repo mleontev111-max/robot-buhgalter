@@ -1,26 +1,40 @@
 {
   "schema_version": "1.0",
+  "checkpoint_system_version": "1.2",
   "resume_system_version": "1.3",
   "project": "mleontev111-max/robot-buhgalter",
   "canonical_branch": "main",
   "state_base_sha": "fcadd123d07b54c091079a25326f48eeb574affc",
   "active_work_registry": "ACTIVE_WORK.json",
   "milestone_index": "MILESTONE_INDEX.json",
-  "current_focus_track": "product",
+  "current_focus_track": "project_ready",
   "default_resume_track": "product",
   "tracks": {
     "product": {
       "status": "active",
       "entrypoint": "PROJECT_STATUS.md",
-      "latest_checkpoint": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
+      "latest_checkpoint": "checkpoints/2026-09-08-production-backend-recovery-current.md",
       "one_next_action": "Close the Docker parity gate for current PR #3 without touching the live Hetzner service: build a test-only linux/amd64 image from the exact current PR head, run Docker-mode PostgreSQL/HTTP integration checks, record PASS/FAIL, and only after PASS decide merge readiness.",
-      "stop_condition": "Do not rebuild, replace, restart or deploy the live production backend; do not merge PR #3 until Docker parity passes."
+      "resume_contract": {
+        "working_directory": ".",
+        "last_verified_evidence": "checkpoints/2026-09-08-production-backend-recovery-current.md",
+        "first_action": "Open PR #3 and resolve its exact current HEAD before any parity work.",
+        "next_command": "npm run resume",
+        "stop_condition": "Do not rebuild, replace, restart or deploy the live production backend; do not merge PR #3 until Docker parity passes."
+      }
     },
     "project_ready": {
       "status": "active",
       "entrypoint": "START_HERE_FOR_AI.md",
       "latest_checkpoint": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
-      "one_next_action": "After Resume Gate v1.3 is merged to main, synchronize it into PR #3, create a current production-backend-recovery workstream STATE file, make the exact PR head continuity guard green, then run a clean-room resume test."
+      "one_next_action": "After Resume Gate v1.3 is merged to main, synchronize it into PR #3, create or refresh the registered production-backend-recovery workstream STATE file on the exact current PR head, make Project Ready Guard green there, then run a clean-room resume test.",
+      "resume_contract": {
+        "working_directory": ".",
+        "last_verified_evidence": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
+        "first_action": "Verify v1.3 on this rollout PR and merge only with Project Ready Guard + ordinary CI green.",
+        "next_command": "npm run resume",
+        "stop_condition": "Do not continue production-backend feature/deployment work when the exact relevant continuity guard is red or WIP state is stale."
+      }
     }
   }
 }
