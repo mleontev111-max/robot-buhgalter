@@ -6,13 +6,19 @@
 
 ## Start here
 
-Новый участник или AI-агент перед любой работой обязан прочитать:
+Для любого нового AI/helper-сеанса первым файлом является [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md).
 
-1. [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — где проект находится сейчас и какой следующий шаг;
-2. [`AGENTS.md`](AGENTS.md) — правила безопасной работы;
-3. последний checkpoint из [`checkpoints/`](checkpoints/).
+До любого ответа по проекту, выбора задачи, плана, code review, изменения кода, deployment-предложения или попытки повторить старую работу нужно пройти Resume Gate:
 
-Если задача касается production backend, дополнительно прочитать текущий draft PR #3 `Recovery: restore production backend from server backup` и проверить его фактический HEAD непосредственно в GitHub. Не полагаться на SHA, записанный в статическом status-файле.
+1. `PROJECT_STATE.json` — merged-main state;
+2. `ACTIVE_WORK.json` — важная незамерженная работа в PR/ветках;
+3. `CHECKPOINT_INDEX.json` — canonical checkpoint pointers;
+4. `npm run resume` / `python3 tools/project_resume.py`;
+5. соответствующий track/workstream current source.
+
+`PROJECT_STATUS.md` остаётся стабильным описанием архитектуры, production reality, safety и verification, но не должен переопределять machine current-state layer.
+
+Если задача касается production backend, дополнительно открыть текущий draft PR #3 `Recovery: restore production backend from server backup` и проверить его фактический HEAD непосредственно в GitHub. Не полагаться на SHA из старого текста или чата.
 
 ### Production operational source of truth
 
@@ -64,6 +70,7 @@ npm run server
 git clone https://github.com/mleontev111-max/robot-buhgalter.git
 cd robot-buhgalter
 npm ci
+npm run resume
 npm run dev
 ```
 
@@ -85,7 +92,7 @@ Local sync server: `http://localhost:8787`.
 
 Его default CORS разрешает `http://localhost:3000` и `http://127.0.0.1:3000`. При нестандартном origin задайте `ALLOWED_ORIGINS` явно.
 
-> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте `PROJECT_STATUS.md` и текущему состоянию PR #3.
+> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте machine resume state и текущему состоянию PR #3.
 
 ## Проверка
 
@@ -118,14 +125,6 @@ Production credentials должны храниться только server-side 
 
 ## Current next action
 
-**Закрыть воспроизводимость production backend через recovery PR #3:**
+Не определять следующий шаг из этого narrative-блока без Resume Gate. Canonical ONE NEXT ACTION находится в `PROJECT_STATE.json` и связанном current checkpoint/workstream state.
 
-1. проверить фактический текущий HEAD PR #3 в GitHub;
-2. собрать test-only `linux/amd64` Docker image из этого HEAD;
-3. не трогать текущий live image/container;
-4. прогнать Docker-mode PostgreSQL/HTTP integration test;
-5. проверить `/health`, `/ready`, login, organizations и logout/revoked-session behavior;
-6. записать image tag, full commit SHA, environment и PASS/FAIL;
-7. только после PASS решать перевод PR из draft и merge.
-
-Подробное текущее состояние — в [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+Стабильное архитектурное и production-описание — в [`PROJECT_STATUS.md`](PROJECT_STATUS.md).

@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "resume": "python3 tools/project_resume.py"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
