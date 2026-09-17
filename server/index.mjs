@@ -8,8 +8,8 @@ import { SYNCERS, TESTERS } from './marketplaces.mjs'
 const app = express()
 
 const defaultOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
   'https://kolyman.ru',
   'https://www.kolyman.ru',
   'https://mleontev111-max.github.io',

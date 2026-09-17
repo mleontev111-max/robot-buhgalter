@@ -9,3 +9,12 @@ checkpoints
 tailwind.config.js
 tsconfig*.json
 vite.config.ts
+
+# Канонические machine-readable state-файлы Resume Gate v1.3 — их формат
+# принадлежит project_ready-треку и читается tools/*.py; переформатировать
+# их отсюда нельзя, иначе пойдут лишние конфликты с main.
+ACTIVE_WORK.json
+PROJECT_READY.json
+PROJECT_STATE.json
+CHECKPOINT_INDEX.json
+MILESTONE_INDEX.json

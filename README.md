@@ -1,71 +1,132 @@
 # Робот-бухгалтер
 
-Веб-приложение для расчёта налогов по продажам на маркетплейсах: **Ozon, Wildberries, Яндекс Маркет, Авито**.
+Веб-приложение для расчёта и контроля налогов по продажам на маркетплейсах: Ozon, Wildberries, Яндекс Маркет и Авито.
 
-Сделано для двух магазинов — «Чайная лафка» и «the chai» — но можно добавить любые свои.
+**Публичный frontend-домен: `https://kolyman.ru`.** Файл `CNAME` в этом репозитории является канонической привязкой домена.
 
-## Что умеет
+## Start here
 
-- **Дашборд** — выручка, расходы маркетплейсов, налог к уплате, эффективная нагрузка; график по маркетплейсам; сводка по магазинам.
-- **Операции** — таблица всех продаж с фильтрами по магазину, маркетплейсу и месяцу; добавление вручную; импорт отчётов **CSV / XLSX** с автоматическим распознаванием колонок и агрегацией по дням.
-- **Налоги** — расчёт по каждому магазину за год: налоговая база, налог, вычет страховых взносов, минимальный налог 1% для УСН 15%, авансовые платежи по кварталам со сроками уплаты.
-- **Подключения API** — хранение ключей Ozon / WB / Яндекс Маркет / Авито, инструкции где их взять, проверка подключения. Ключи хранятся только в браузере (localStorage); можно задать пароль — тогда они шифруются на устройстве (AES-GCM, пароль нигде не хранится) перед сохранением.
-- **Настройки** — налоговый режим каждого магазина (УСН 6%, УСН 15%, НПД, Патент, ОСНО), взносы, резервное копирование / восстановление данных в JSON.
+Для любого нового AI/helper-сеанса первым файлом является [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md).
 
-## Поддерживаемые режимы налогообложения
+До любого ответа по проекту, выбора задачи, плана, code review, изменения кода, deployment-предложения или попытки повторить старую работу нужно пройти Resume Gate:
 
-| Режим | Как считается |
-|---|---|
-| УСН 6% «Доходы» | выручка × 6%, минус страховые взносы (до 100% без сотрудников, до 50% с сотрудниками) |
-| УСН 15% «Доходы − расходы» | (выручка − комиссии − логистика − реклама − прочее) × 15%, минимум 1% от выручки |
-| НПД (самозанятый) | выручка × 4% / 6% |
-| Патент (ПСН) | фиксированная стоимость патента, минус взносы |
-| ОСНО | упрощённо: НДС 20/120 + налог на прибыль 20% |
+1. `PROJECT_STATE.json` — merged-main state;
+2. `ACTIVE_WORK.json` — важная незамерженная работа в PR/ветках;
+3. `CHECKPOINT_INDEX.json` — canonical checkpoint pointers;
+4. `npm run resume` / `python3 tools/project_resume.py`;
+5. соответствующий track/workstream current source.
 
-> ⚠️ Расчёт ориентировочный и не заменяет бухгалтера: не учитывает региональные льготы,
-> торговый сбор и изменения законодательства.
+`PROJECT_STATUS.md` остаётся стабильным описанием архитектуры, production reality, safety и verification, но не должен переопределять machine current-state layer.
 
-## Запуск
+Если задача касается production backend, дополнительно открыть текущий draft PR #3 `Recovery: restore production backend from server backup` и проверить его фактический HEAD непосредственно в GitHub. Не полагаться на SHA из старого текста или чата.
+
+### Production operational source of truth
+
+Для авторизованных участников канонические operational docs находятся в приватном репозитории `mleontev111-max/thechai_space`:
+
+- `docs/server/ROBOT_BUHGALTER_PRODUCTION.md` — факты по Robot-Buhgalter production backend;
+- `docs/server/SERVER_MAP.md` — текущая карта Hetzner/server infrastructure;
+- `docs/server/RUNBOOK.md` — эксплуатационные/recovery процедуры.
+
+Эти документы могут содержать только несекретные operational facts. Passwords, tokens, private keys, `.env`, database connection strings и другие секреты в Git не переносить.
+
+## Архитектура сейчас
+
+Важно различать два backend-контура.
+
+### 1. Local / legacy sync server
+
+`server/index.mjs` — простой read-only sync server для локальной разработки. Он запускается через:
 
 ```bash
-npm install
-npm run dev      # приложение → http://localhost:3000
-npm run server   # сервер синхронизации → http://localhost:8787
-npm run build    # продакшен-сборка в dist/
+npm run server
 ```
 
-## Автосинхронизация по API (read-only)
+По умолчанию слушает `http://localhost:8787` и проксирует read-only запросы к API маркетплейсов. Это **не текущий production backend**.
 
-Серверный модуль (`server/`) забирает продажи напрямую из API маркетплейсов — браузер
-обращается к локальному серверу, а тот делает запросы к маркетплейсам. **Все запросы —
-только на чтение.** Ключи на сервере не сохраняются, живут только в момент запроса.
+### 2. Current production backend
 
-Какие ключи нужны (всё — read-only):
+Фактический production backend уже существует и использует PostgreSQL, authentication, tenant isolation и server-side encrypted marketplace credentials.
 
-| Маркетплейс | Где взять | Что нужно | Доступ |
-|---|---|---|---|
-| Ozon | seller.ozon.ru → Настройки → API-ключи | Client-Id + Api-Key | ключ типа **«Admin read only»** |
-| Wildberries | seller.wildberries.ru → Профиль → Интеграции API | токен | тип **«Только чтение»**, категория **«Статистика»** |
-| Яндекс Маркет | partner.market.yandex.ru → Настройки → API и модули | Api-Key + CampaignId | доступ **«all-methods:read-only»** |
-| Авито | кабинет avito.ru → Настройки → Avito API | Client ID + Client Secret | гранулярного read-only нет, модуль вызывает только GET-методы заказов |
+Его исходники были восстановлены из работающего production image и находятся в draft PR #3 в `server/production/`. PR ещё **не готов к merge/deploy**: до этого необходимо собрать test-only Docker image из Git и пройти Docker-mode HTTP/PostgreSQL integration gate.
 
-Используемые методы (только чтение):
+## Что умеет frontend
 
-- **Ozon** — `POST /v3/finance/transaction/list` (финансовые операции: начисления, комиссии, логистика)
-- **WB** — `GET /api/v5/supplier/reportDetailByPeriod` (детальный финансовый отчёт)
-- **Яндекс Маркет** — `POST /v2/campaigns/{id}/stats/orders` (статистика заказов)
-- **Авито** — `GET /order-management/1/orders` (заказы магазина, экспериментально)
+- дашборд по выручке, расходам маркетплейсов и налогам;
+- операции с фильтрами и ручным вводом;
+- импорт CSV/XLSX;
+- налоговые расчёты по организациям и режимам;
+- налоговый календарь и журнал платежей;
+- marketplace connections; ключи хранятся в браузере (localStorage), опционально
+  шифруются на устройстве по паролю пользователя (AES-GCM, пароль нигде не
+  сохраняется) — см. `src/lib/secretCrypto.ts`;
+- резервный JSON-экспорт без API credentials.
 
-В приложении: раздел **«Подключения API»** → ввести ключи → «Проверить» → выбрать период →
-«Синхронизировать». Повторная синхронизация за тот же период заменяет данные, а не дублирует.
+Текущий `main` всё ещё использует browser `localStorage` для MVP-состояния. Это не следует путать с фактической production backend архитектурой, которая восстанавливается в PR #3.
 
-## Технологии
+## Clean local start для current main
 
-React 19 · TypeScript · Vite · Tailwind CSS · shadcn/ui · Recharts · SheetJS (xlsx)
+Требуется Node.js 20 и npm.
 
-## Дорожная карта
+```bash
+git clone https://github.com/mleontev111-max/robot-buhgalter.git
+cd robot-buhgalter
+npm ci
+npm run resume
+npm run dev
+```
 
-- [ ] Серверный модуль для автосинхронизации по API (из браузера запросы блокируются CORS-политикой маркетплейсов)
-- [ ] Учёт возвратов и выкупов
-- [ ] Напоминания о сроках авансовых платежей
-- [ ] Экспорт налогового отчёта в PDF
+Frontend локально запускается на:
+
+```text
+http://localhost:3000
+```
+
+Порт `3000` закреплён в `vite.config.ts` и является каноническим local frontend port.
+
+Если нужен local read-only sync server, во втором терминале:
+
+```bash
+npm run server
+```
+
+Local sync server: `http://localhost:8787`.
+
+Его default CORS разрешает `http://localhost:3000` и `http://127.0.0.1:3000`. При нестандартном origin задайте `ALLOWED_ORIGINS` явно.
+
+> Для production-backend development не используйте этот local sync server как замену `server/production`. Следуйте machine resume state и текущему состоянию PR #3.
+
+## Проверка
+
+Перед завершением любой кодовой сессии:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+GitHub CI на `main` выполняет те же обязательные проверки. GitHub Pages deploy также зависит от успешных lint/tests/build.
+
+## Marketplace API safety
+
+Локальный sync server предназначен только для read-only операций. Ключи маркетплейсов не должны попадать в Git, checkpoints, issues, логи или backup exports.
+
+Production credentials должны храниться только server-side в предусмотренном production backend контуре.
+
+## Production safety
+
+Пока recovery PR #3 не прошёл Docker parity gate:
+
+- не rebuild и не заменять текущий live production backend;
+- не считать `server/index.mjs` production backend;
+- не merge PR #3 только на основании unit/local DB tests;
+- не менять production database вручную;
+- не менять DNS/Caddy/UFW в рамках recovery gate;
+- не менять привязку `kolyman.ru` без явного решения владельца проекта.
+
+## Current next action
+
+Не определять следующий шаг из этого narrative-блока без Resume Gate. Canonical ONE NEXT ACTION находится в `PROJECT_STATE.json` и связанном current checkpoint/workstream state.
+
+Стабильное архитектурное и production-описание — в [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
