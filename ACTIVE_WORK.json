@@ -20,6 +20,29 @@
       "observed_head_at_rollout": "dc6674216d7f0540a0c75f263a89605b332eba96",
       "blocker": "Merge/deployment readiness is blocked until a test-only linux/amd64 image built from the exact PR head passes Docker-mode PostgreSQL/HTTP integration checks. The live production container must remain untouched.",
       "one_next_action": "Build a test-only linux/amd64 image from the exact current PR #3 head and run the Docker-mode PostgreSQL/HTTP parity test; record full SHA, image tag, environment and PASS/FAIL without touching live production."
+    },
+    "frontend_stabilization": {
+      "status": "active",
+      "branch": "claude/github-connection-q4t7zr",
+      "pull_request": null,
+      "state_file": "docs/workstreams/frontend-stabilization/STATE.md",
+      "scope_paths": [
+        "src/",
+        ".prettierrc.json",
+        ".prettierignore",
+        "docs/workstreams/frontend-stabilization/"
+      ],
+      "known_durable_evidence": [
+        "ac64fa5",
+        "ec563d7",
+        "c6792b8",
+        "9769918",
+        "a2ad4b1",
+        "6f2285d"
+      ],
+      "observed_head_at_rollout": "6f2285d",
+      "blocker": "No technical blocker; local tsc/lint/format/vitest (45/45) and npm run resume are green. GitHub CI has never run on this branch because no PR was ever opened. Open question is product-level: this branch invests in the client-only localStorage MVP while PR #3 restores the real PostgreSQL backend, and nobody has decided how the two converge.",
+      "one_next_action": "Get an owner decision on whether this branch merges to main as-is or is re-scoped once the PR #3 backend becomes the real data source; do not open a PR or merge before that decision."
     }
   }
 }
