@@ -181,7 +181,9 @@ try {
   const appUrl = `postgresql://robot_buhgalter_app:${appPassword}@127.0.0.1:${port}/robot_buhgalter`
   const app = new pg.Pool({ connectionString: appUrl })
 
-  if (process.env.ROBOT_BUHGALTER_TEST_IMAGE && testMode === 'docker') {
+  const apiImage = process.env.ROBOT_BUHGALTER_TEST_IMAGE
+  if (apiImage && testMode === 'docker') {
+    console.log(`HTTP gate: driving built image ${apiImage} over HTTP`)
     const containerDatabaseUrl = `postgresql://robot_buhgalter_app:${appPassword}@127.0.0.1:5432/robot_buhgalter`
     runDocker(
       'run', '--detach', '--name', apiContainer,
@@ -189,7 +191,7 @@ try {
       '--env', `DATABASE_URL=${containerDatabaseUrl}`,
       '--env', 'DATABASE_SSL=disable',
       '--env', `CREDENTIALS_ENCRYPTION_KEY=${Buffer.alloc(32, 9).toString('base64')}`,
-      process.env.ROBOT_BUHGALTER_TEST_IMAGE,
+      apiImage,
     )
     let ready = false
     for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -205,6 +207,7 @@ try {
       }
     }
     assert(ready, 'Backend image did not become database-ready')
+    console.log('HTTP gate: /ready OK (real SELECT 1 against the built image)')
     runDocker(
       'exec', apiContainer, 'node', '--input-type=module', '-e',
       `const base='http://127.0.0.1:8788';
@@ -216,6 +219,12 @@ try {
        const logout=await fetch(base+'/v1/auth/logout',{method:'POST',headers}); if(logout.status!==204)process.exit(3);
        const revoked=await fetch(base+'/v1/organizations',{headers}); if(revoked.status!==401)process.exit(4);`,
     )
+    console.log('HTTP gate: login, organizations, logout and revoked-session 401 OK')
+  } else if (testMode === 'docker') {
+    // Without an image the script still exercises PostgreSQL, but nothing
+    // touches the recovered backend over HTTP. Say so loudly: a silent
+    // degradation here would let a green run be mistaken for Docker parity.
+    console.log('HTTP gate: SKIPPED — ROBOT_BUHGALTER_TEST_IMAGE is not set; this run does NOT prove Docker parity')
   }
 
   const clientA = await app.connect()

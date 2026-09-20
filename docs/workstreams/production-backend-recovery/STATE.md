@@ -71,6 +71,28 @@ Production rollout stays a **separate** controlled decision after merge — with
 known rollback tag and an explicit deployment checkpoint. Merging this PR does
 not deploy anything.
 
+### Gate made self-evidencing (2026-09-20)
+
+Reading the gate's own log turned up a weakness in it. The HTTP phase of
+`db.integration.mjs` — the part that actually drives the built image — only
+runs when `ROBOT_BUHGALTER_TEST_IMAGE` is set, and every `docker` call inside
+it captures its own output. So the phase produced no log output at all, and a
+run that silently degraded to a plain PostgreSQL test would have looked
+identical to a real parity run and still reported PASS.
+
+Verified from the logs that it did in fact run on every gate execution so far
+(the env var is set by the workflow, and there is no silent-skip path once the
+branch is entered). The weakness was that nothing *proved* it from the record.
+
+Now it does:
+
+- `db.integration.mjs` prints `HTTP gate: /ready OK ...` and `HTTP gate: login,
+  organizations, logout and revoked-session 401 OK` when the phase runs, and
+  prints an explicit `HTTP gate: SKIPPED — ... does NOT prove Docker parity`
+  when the image is absent in docker mode;
+- the workflow greps for both markers and fails the job if either is missing,
+  so a degraded run can no longer be recorded as proven parity.
+
 ### Main state-layer catch-up (2026-09-20)
 
 Previously flagged here as needing a separate change on `main`: the product

@@ -147,7 +147,18 @@ jobs:
           # organizations, logout, and the revoked-session 401.
           ROBOT_BUHGALTER_TEST_IMAGE: ${{ steps.ident.outputs.image_tag }}
           POSTGRES_TEST_MODE: docker
-        run: npm run test:db
+        run: |
+          set -euo pipefail
+          npm run test:db 2>&1 | tee gate.log
+          # The HTTP phase of db.integration.mjs only runs when
+          # ROBOT_BUHGALTER_TEST_IMAGE is set, and every docker call inside it
+          # captures its own output. Without this assertion a run that silently
+          # degraded to a plain PostgreSQL test would still report PASS, and
+          # "Docker parity proven" would be recorded for a run that never
+          # touched the built image.
+          grep -q 'HTTP gate: /ready OK' gate.log
+          grep -q 'HTTP gate: login, organizations, logout and revoked-session 401 OK' gate.log
+          echo "OK   HTTP phase against the built image is present in this run"
 
       - name: Record PASS
         if: success()
