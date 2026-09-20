@@ -26,8 +26,26 @@
       "integration_state": "branch",
       "branch": "recovery/production-backend-2026-08-27",
       "pull_request": 3,
-      "summary": "PR #3 unit tests and local PostgreSQL integration checks pass; deterministic Dockerfile is restored. Docker image parity remains unproven.",
+      "summary": "PR #3 unit tests and local PostgreSQL integration checks pass; deterministic Dockerfile is restored.",
       "evidence": "PR #3"
+    },
+    {
+      "id": "production-backend-docker-parity",
+      "status": "verified_unmerged",
+      "integration_state": "branch",
+      "branch": "recovery/production-backend-2026-08-27",
+      "pull_request": 3,
+      "summary": "Docker parity PASSED 2026-09-20 on 825acfe: a test-only linux/amd64 image built from Dockerfile.backend matches the recorded production image config, carries no dev dependencies, serves /health, and passes the Docker-mode PostgreSQL/HTTP gate (/ready, login, organizations, logout, revoked-session 401). The gate is CI now, not a manual runbook step.",
+      "evidence": "checkpoints/2026-09-20-production-backend-recovery-current.md; https://github.com/mleontev111-max/robot-buhgalter/actions/runs/35495348571"
+    },
+    {
+      "id": "resume-gate-v1-3-rollout-complete",
+      "status": "verified_unmerged",
+      "integration_state": "branch",
+      "branch": "recovery/production-backend-2026-08-27",
+      "pull_request": 3,
+      "summary": "Resume Gate v1.3 rollout is complete: merged to main (PR #5), synced into PR #3, workstream STATE file current on the exact PR head, Project Ready Guard green there, and a clean-room resume test passing from a fresh clone (2026-09-20).",
+      "evidence": "checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md"
     }
   ]
 }

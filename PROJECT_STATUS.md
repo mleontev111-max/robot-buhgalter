@@ -44,28 +44,28 @@ Verified capabilities in PR #3 include:
 - login/session/logout and organization API;
 - unit tests;
 - local PostgreSQL integration tests;
-- restored `Dockerfile.backend` with deterministic dependency installation.
+- restored `Dockerfile.backend` with deterministic dependency installation;
+- the Docker parity gate as CI (`.github/workflows/docker-parity.yml`), passing.
 
 ## Main blocker
 
-**Reproducible Docker parity is not yet proven.**
+**None technical.** Reproducible Docker parity was proven on 2026-09-20.
 
-Before PR #3 can be treated as merge/deploy ready, a new test-only image must actually be built from the current PR HEAD and tested end-to-end against PostgreSQL over HTTP.
+The gate ran on the exact PR #3 head `825acfe917bb149f6a727dc96533ba8c7fe2ec6a`, image tag `robot-buhgalter-api:825acfe` (test-only, never pushed), on a GitHub-hosted `ubuntu-24.04` native `linux/amd64` runner. It proved a reproducible build from `Dockerfile.backend`, an image config matching every fact recorded from the live production image, no dev dependencies in the runtime image, a responding `/health`, and the Docker-mode PostgreSQL/HTTP gate over `/ready`, login, organizations, logout and the revoked-session `401`.
 
-Do not infer readiness from source review, root CI, unit tests or local-mode DB tests alone.
+It is now `.github/workflows/docker-parity.yml` and re-runs on every pull request, so parity cannot silently rot. Evidence: `checkpoints/2026-09-20-production-backend-recovery-current.md`.
+
+What remains is a human decision, not a missing proof.
 
 ## Exact NEXT ACTION
 
-Close the Docker parity gate without touching the live service:
+Decide merge readiness for PR #3 with the project owner:
 
 1. open PR #3 and record its current full HEAD SHA;
-2. build a test-only `linux/amd64` Docker image from that exact HEAD;
-3. do **not** replace/restart/rebuild the current live production backend;
-4. run the Docker-mode PostgreSQL/HTTP integration test against the built image;
-5. verify `/health`, `/ready`, `POST /auth/login`, `GET /v1/organizations`, logout and revoked-session `401` behavior;
-6. record full SHA, image tag, test environment and PASS/FAIL in PR/checkpoint;
-7. only after PASS decide whether PR #3 leaves draft and merges;
-8. production rollout, if approved later, is a separate controlled step with rollback.
+2. confirm ordinary CI, Project Ready Guard and the Docker Parity Gate are all green on that same head;
+3. take the PR out of draft and merge it;
+4. **merging deploys nothing** — do not treat it as a rollout;
+5. production rollout to Hetzner, if approved later, is a separate controlled step: its own deployment checkpoint, a rollback tag recorded before anything on the server changes, and no changes to the live container until then.
 
 ## Production operational source of truth
 
@@ -127,10 +127,10 @@ If these sources disagree, do not guess. Mark `INCONSISTENT` / `TO VERIFY` and r
 
 - Never commit or paste passwords, API keys, tokens, private keys, `.env` files or database connection strings.
 - Never treat `server/index.mjs` as the current production backend.
-- Never rebuild/remove/replace the live Robot-Buhgalter production image while reproducible Git-backed parity is unproven.
-- Never merge/deploy PR #3 before the Docker parity gate passes.
+- Never rebuild/remove/replace the live Robot-Buhgalter production image outside an approved, separately checkpointed rollout with a recorded rollback tag.
+- Never treat merging PR #3 as a deployment — merging deploys nothing.
 - Never manually mutate production PostgreSQL as an onboarding shortcut.
-- Never change DNS/Caddy/UFW during the recovery parity gate.
+- Never change DNS/Caddy/UFW as part of recovery or rollout work.
 - `kolyman.ru` is the canonical public frontend domain; do not change its binding without explicit owner approval.
 
 ## Verification commands for current main

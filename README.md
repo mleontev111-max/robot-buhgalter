@@ -48,7 +48,7 @@ npm run server
 
 Фактический production backend уже существует и использует PostgreSQL, authentication, tenant isolation и server-side encrypted marketplace credentials.
 
-Его исходники были восстановлены из работающего production image и находятся в draft PR #3 в `server/production/`. PR ещё **не готов к merge/deploy**: до этого необходимо собрать test-only Docker image из Git и пройти Docker-mode HTTP/PostgreSQL integration gate.
+Его исходники были восстановлены из работающего production image и находятся в PR #3 в `server/production/`. Docker parity gate **пройден** 2026-09-20 (`.github/workflows/docker-parity.yml`, head `825acfe`): test-only `linux/amd64` image собирается из `Dockerfile.backend`, его конфигурация совпадает с зафиксированными фактами live-образа, dev-зависимостей в runtime-образе нет, `/health` отвечает, и Docker-mode PostgreSQL/HTTP gate проходит (`/ready`, login, organizations, logout, revoked-session `401`). Технических блокеров к merge больше нет — остаётся решение владельца. **Merge ничего не деплоит**: rollout на Hetzner — отдельный контролируемый шаг.
 
 ## Что умеет frontend
 
@@ -114,13 +114,11 @@ Production credentials должны храниться только server-side 
 
 ## Production safety
 
-Пока recovery PR #3 не прошёл Docker parity gate:
-
-- не rebuild и не заменять текущий live production backend;
+- не rebuild и не заменять текущий live production backend вне отдельно утверждённого rollout с записанным rollback-тегом;
+- не считать merge PR #3 деплоем — merge ничего не выкатывает;
 - не считать `server/index.mjs` production backend;
-- не merge PR #3 только на основании unit/local DB tests;
 - не менять production database вручную;
-- не менять DNS/Caddy/UFW в рамках recovery gate;
+- не менять DNS/Caddy/UFW в рамках recovery/rollout работ;
 - не менять привязку `kolyman.ru` без явного решения владельца проекта.
 
 ## Current next action

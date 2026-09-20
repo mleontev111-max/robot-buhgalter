@@ -2,8 +2,13 @@
 
 Date: 2026-09-08
 Track: product
-Checkpoint-Role: latest
-Status: CURRENT / VERIFIED CONTINUATION
+Checkpoint-Role: superseded
+Status: SUPERSEDED — historical evidence only
+Superseded-By: checkpoints/2026-09-20-production-backend-recovery-current.md
+
+> The blocker described below (unproven Docker parity) was closed on
+> 2026-09-20. Read the superseding checkpoint for current state; this file
+> is kept as the record of what the gate demanded before it passed.
 
 ## Current merged-main baseline
 

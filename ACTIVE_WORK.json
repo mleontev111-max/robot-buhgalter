@@ -11,15 +11,27 @@
       "scope_paths": [
         "server/production/",
         "Dockerfile.backend",
-        "docs/workstreams/production-backend-recovery/"
+        "docs/workstreams/production-backend-recovery/",
+        ".github/workflows/docker-parity.yml"
       ],
       "known_durable_evidence": [
         "bee7919",
-        "706f06b"
+        "706f06b",
+        "825acfe"
       ],
-      "observed_head_at_rollout": "dc6674216d7f0540a0c75f263a89605b332eba96",
-      "blocker": "Merge/deployment readiness is blocked until a test-only linux/amd64 image built from the exact PR head passes Docker-mode PostgreSQL/HTTP integration checks. The live production container must remain untouched.",
-      "one_next_action": "Build a test-only linux/amd64 image from the exact current PR #3 head and run the Docker-mode PostgreSQL/HTTP parity test; record full SHA, image tag, environment and PASS/FAIL without touching live production."
+      "observed_head_at_rollout": "825acfe917bb149f6a727dc96533ba8c7fe2ec6a",
+      "docker_parity": {
+        "status": "PASS",
+        "date": "2026-09-20",
+        "commit": "825acfe917bb149f6a727dc96533ba8c7fe2ec6a",
+        "image_tag": "robot-buhgalter-api:825acfe",
+        "environment": "GitHub-hosted ubuntu-24.04 runner, native linux/amd64",
+        "run_url": "https://github.com/mleontev111-max/robot-buhgalter/actions/runs/35495348571",
+        "workflow": ".github/workflows/docker-parity.yml",
+        "verified": "reproducible build from Dockerfile.backend; image config matches recorded production facts (amd64, Alpine 3.23.x, Node v20.20.2, /app, app user, entrypoint, cmd, 8788); no dev dependencies in runtime image; /health; and the Docker-mode gate covering /ready, login, organizations, logout and revoked-session 401"
+      },
+      "blocker": "None technical. Docker parity passed on 825acfe (2026-09-20) and the gate re-runs automatically on every pull request. Merge readiness is a human decision, and production rollout remains a separate controlled step after merge.",
+      "one_next_action": "Decide merge readiness for PR #3 with the project owner: take it out of draft, confirm ordinary CI, Project Ready Guard and the Docker Parity Gate are green on the same head, and merge. Merging deploys nothing; production rollout to Hetzner is a separate controlled step with its own deployment checkpoint and a known rollback tag."
     }
   }
 }

@@ -13,25 +13,25 @@
     "product": {
       "status": "active",
       "entrypoint": "PROJECT_STATUS.md",
-      "latest_checkpoint": "checkpoints/2026-09-08-production-backend-recovery-current.md",
-      "one_next_action": "Close the Docker parity gate for current PR #3 without touching the live Hetzner service: build a test-only linux/amd64 image from the exact current PR head, run Docker-mode PostgreSQL/HTTP integration checks, record PASS/FAIL, and only after PASS decide merge readiness.",
+      "latest_checkpoint": "checkpoints/2026-09-20-production-backend-recovery-current.md",
+      "one_next_action": "Decide merge readiness for PR #3 with the project owner: take it out of draft, confirm ordinary CI, Project Ready Guard and the Docker Parity Gate are green on the same head, and merge. Merging deploys nothing; production rollout to Hetzner is a separate controlled step with its own deployment checkpoint and a known rollback tag.",
       "resume_contract": {
         "working_directory": ".",
-        "last_verified_evidence": "checkpoints/2026-09-08-production-backend-recovery-current.md",
-        "first_action": "Open PR #3 and resolve its exact current HEAD before any parity work.",
+        "last_verified_evidence": "checkpoints/2026-09-20-production-backend-recovery-current.md",
+        "first_action": "Open PR #3 and resolve its exact current HEAD before acting; the Docker parity gate is proven and re-runs in CI.",
         "next_command": "npm run resume",
-        "stop_condition": "Do not rebuild, replace, restart or deploy the live production backend; do not merge PR #3 until Docker parity passes."
+        "stop_condition": "Do not rebuild, replace, restart or deploy the live production backend; do not treat merging PR #3 as a deployment; do not deploy without a recorded rollback tag and owner approval."
       }
     },
     "project_ready": {
       "status": "active",
       "entrypoint": "START_HERE_FOR_AI.md",
-      "latest_checkpoint": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
-      "one_next_action": "After Resume Gate v1.3 is merged to main, synchronize it into PR #3, create or refresh the registered production-backend-recovery workstream STATE file on the exact current PR head, make Project Ready Guard green there, then run a clean-room resume test.",
+      "latest_checkpoint": "checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md",
+      "one_next_action": "Register the frontend_stabilization workstream in main's ACTIVE_WORK.json so npm run resume from main can see those 13 unmerged commits; it is currently registered only on its own branch, which is the exact invisibility Resume Gate exists to prevent. Registration is a continuity fact and does not decide whether that branch merges.",
       "resume_contract": {
         "working_directory": ".",
-        "last_verified_evidence": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
-        "first_action": "Verify v1.3 on this rollout PR and merge only with Project Ready Guard + ordinary CI green.",
+        "last_verified_evidence": "checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md",
+        "first_action": "Read the rollout-complete checkpoint; Resume Gate v1.3 is merged, synced into PR #3, guard-green on its head and clean-room verified.",
         "next_command": "npm run resume",
         "stop_condition": "Do not continue production-backend feature/deployment work when the exact relevant continuity guard is red or WIP state is stale."
       }

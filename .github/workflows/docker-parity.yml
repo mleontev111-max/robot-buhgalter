@@ -1,0 +1,194 @@
+name: Docker Parity Gate
+
+# Proves the ONE NEXT ACTION of the product track / production_backend_recovery
+# workstream: build a TEST-ONLY linux/amd64 image from the exact PR head and
+# run the Docker-mode PostgreSQL/HTTP integration gate against it, recording
+# full SHA, image tag, environment and PASS/FAIL.
+#
+# Why this exists as CI rather than a manual runbook step: the gate needs a
+# Docker Engine that can pull `node:20.20.2-alpine3.23` and `postgres:16-alpine`.
+# Agent/dev sandboxes used on this project have had registry egress blocked by
+# policy, which left the gate unproven for weeks. GitHub-hosted runners are
+# native amd64 with a working Docker Engine, so the gate runs here on every
+# pull request instead of waiting on someone's laptop.
+#
+# SAFETY: this touches nothing outside the ephemeral runner. It does not reach
+# Hetzner, does not use production secrets, does not read or mutate the
+# production database, and does not push the built image anywhere. The image is
+# built, tested locally in the runner, and discarded with the runner.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# `push` is scoped to `main` on purpose. Scoping it to the recovery branch made
+# push and pull_request both fire for the same head; the concurrency group below
+# then cancelled one of them, and the cancelled run stayed on the head as a
+# non-successful check, which is what kept PR #3 at mergeable_state=unstable
+# even with every gate green. `ci.yml` and `project-ready.yml` already scope
+# push to `main` for the same reason.
+concurrency:
+  group: docker-parity-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  docker-parity:
+    # Native linux/amd64 — matches the production container architecture with
+    # no QEMU emulation in the path.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          # The gate must run against the exact PR head, not a merge preview.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Record identity and environment
+        id: ident
+        run: |
+          set -euo pipefail
+          FULL_SHA="$(git rev-parse HEAD)"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          IMAGE_TAG="robot-buhgalter-api:${SHORT_SHA}"
+          echo "full_sha=${FULL_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "FULL_SHA=${FULL_SHA}"
+            echo "IMAGE_TAG=${IMAGE_TAG}"
+            echo "RUNNER=${RUNNER_OS} ${RUNNER_ARCH} / $(uname -srm)"
+            echo "DOCKER=$(docker --version)"
+            echo "NODE=$(node --version)"
+          } | tee environment.txt
+
+      - name: Build test-only linux/amd64 image
+        run: |
+          set -euo pipefail
+          docker build --platform linux/amd64 \
+            -f Dockerfile.backend \
+            -t "${{ steps.ident.outputs.image_tag }}" .
+
+      - name: Verify image matches recorded production facts
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.ident.outputs.image_tag }}"
+          fail=0
+          check() {
+            local label="$1" actual="$2" expected="$3"
+            if [ "$actual" = "$expected" ]; then
+              echo "OK   ${label}: ${actual}"
+            else
+              echo "FAIL ${label}: got '${actual}', expected '${expected}'"
+              fail=1
+            fi
+          }
+          check "architecture" "$(docker image inspect "$TAG" --format '{{.Architecture}}')" "amd64"
+          check "os"           "$(docker image inspect "$TAG" --format '{{.Os}}')" "linux"
+          check "workdir"      "$(docker image inspect "$TAG" --format '{{.Config.WorkingDir}}')" "/app"
+          check "user"         "$(docker image inspect "$TAG" --format '{{.Config.User}}')" "app"
+          check "entrypoint"   "$(docker image inspect "$TAG" --format '{{json .Config.Entrypoint}}')" '["docker-entrypoint.sh"]'
+          check "cmd"          "$(docker image inspect "$TAG" --format '{{json .Config.Cmd}}')" '["node","server/production/index.mjs"]'
+          check "exposed port" "$(docker image inspect "$TAG" --format '{{json .Config.ExposedPorts}}')" '{"8788/tcp":{}}'
+          check "node version" "$(docker run --rm --entrypoint node "$TAG" --version)" "v20.20.2"
+          ALPINE="$(docker run --rm --entrypoint cat "$TAG" /etc/alpine-release)"
+          echo "INFO alpine release: ${ALPINE}"
+          case "$ALPINE" in
+            3.23.*) echo "OK   alpine major.minor: ${ALPINE}" ;;
+            *) echo "FAIL alpine major.minor: got '${ALPINE}', expected 3.23.*"; fail=1 ;;
+          esac
+          # The recovered production runtime must not carry dev dependencies.
+          if docker run --rm --entrypoint sh "$TAG" -c 'test -d /app/server/production/node_modules/vitest'; then
+            echo "FAIL dev dependencies present in runtime image (vitest found)"
+            fail=1
+          else
+            echo "OK   no dev dependencies in runtime image"
+          fi
+          exit "$fail"
+
+      - name: Verify /health on the built image
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.ident.outputs.image_tag }}"
+          # /health is deliberately DB-independent, so it is checked without a
+          # database. db.integration.mjs covers /ready, which does hit Postgres.
+          docker run --detach --name parity-health \
+            --env 'DATABASE_URL=postgresql://unused:unused@127.0.0.1:5432/unused' \
+            --env "CREDENTIALS_ENCRYPTION_KEY=$(head -c 32 /dev/zero | base64)" \
+            --publish 127.0.0.1:18788:8788 \
+            "$TAG"
+          ok=0
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18788/health | tee health.json | grep -q '"ok":true'; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          docker logs parity-health || true
+          docker rm --force parity-health >/dev/null 2>&1 || true
+          if [ "$ok" != "1" ]; then
+            echo "FAIL /health did not return ok:true"
+            exit 1
+          fi
+          echo "OK   /health responded"
+
+      - name: Install production package dependencies
+        working-directory: server/production
+        run: npm ci
+
+      - name: Docker-mode PostgreSQL/HTTP integration gate
+        working-directory: server/production
+        env:
+          # Drives the built image itself: /ready (real SELECT 1), login,
+          # organizations, logout, and the revoked-session 401.
+          ROBOT_BUHGALTER_TEST_IMAGE: ${{ steps.ident.outputs.image_tag }}
+          POSTGRES_TEST_MODE: docker
+        run: |
+          set -euo pipefail
+          npm run test:db 2>&1 | tee gate.log
+          # The HTTP phase of db.integration.mjs only runs when
+          # ROBOT_BUHGALTER_TEST_IMAGE is set, and every docker call inside it
+          # captures its own output. Without this assertion a run that silently
+          # degraded to a plain PostgreSQL test would still report PASS, and
+          # "Docker parity proven" would be recorded for a run that never
+          # touched the built image.
+          grep -q 'HTTP gate: /ready OK' gate.log
+          grep -q 'HTTP gate: login, organizations, logout and revoked-session 401 OK' gate.log
+          echo "OK   HTTP phase against the built image is present in this run"
+
+      - name: Record PASS
+        if: success()
+        run: |
+          {
+            echo "## Docker Parity Gate: PASS"
+            echo
+            echo '```'
+            cat environment.txt
+            echo '```'
+            echo
+            echo "Verified on this exact head:"
+            echo "- image builds reproducibly from \`Dockerfile.backend\` (npm ci --omit=dev, no copied node_modules)"
+            echo "- image config matches recorded production facts (amd64, Alpine 3.23.x, Node v20.20.2, /app, app user, entrypoint, cmd, 8788)"
+            echo "- runtime image carries no dev dependencies"
+            echo "- \`/health\` responds"
+            echo "- \`/ready\`, login, organizations, logout and revoked-session 401 pass via the Docker-mode integration gate"
+            echo
+            echo "Nothing outside this runner was touched: no Hetzner, no production database, no image push."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record FAIL
+        if: failure()
+        run: |
+          {
+            echo "## Docker Parity Gate: FAIL"
+            echo
+            echo '```'
+            cat environment.txt 2>/dev/null || echo "environment not recorded"
+            echo '```'
+            echo
+            echo "Docker parity is NOT proven for this head. Do not merge or deploy PR #3."
+          } >> "$GITHUB_STEP_SUMMARY"
