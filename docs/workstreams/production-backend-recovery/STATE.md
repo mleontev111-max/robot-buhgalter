@@ -2,7 +2,7 @@
 
 Workstream: production_backend_recovery
 Workstream-State: current
-Date: 2026-09-08
+Date: 2026-09-20
 Branch: `recovery/production-backend-2026-08-27`
 Pull Request: #3
 
@@ -44,8 +44,18 @@ What that run proved, on that exact head:
   `POST /v1/auth/logout`, and the revoked session returning a real `401`.
 
 Nothing outside the ephemeral runner was touched: no Hetzner, no production
-database, no registry push. The gate now re-runs automatically on every future
-push to this branch, so parity cannot silently rot before merge.
+database, no registry push. The gate re-runs automatically on every pull
+request, so parity cannot silently rot before merge — or after it.
+
+### Gate trigger fix (2026-09-20)
+
+As first written, `docker-parity.yml` fired on both `pull_request` and `push`
+to this branch. Both events carry the same head SHA and share the workflow's
+concurrency group, so one of the two was always cancelled — and the cancelled
+run stayed on the head as a non-successful check. That is why PR #3 reported
+`mergeable_state: unstable` while CI, Project Ready Guard and the parity gate
+were all green. `push` is now scoped to `main`, matching `ci.yml` and
+`project-ready.yml`; `pull_request` alone covers this branch.
 
 ## Current blocker
 
@@ -54,18 +64,35 @@ None technical. Merge readiness is now a human decision, not a missing proof.
 ## ONE NEXT ACTION
 
 Decide merge readiness for PR #3 with the owner: take it out of draft, confirm
-ordinary CI and Project Ready Guard are green on the same head, and merge.
+ordinary CI, Project Ready Guard and the Docker Parity Gate are green on the
+same head, and merge.
 
 Production rollout stays a **separate** controlled decision after merge — with a
 known rollback tag and an explicit deployment checkpoint. Merging this PR does
 not deploy anything.
 
-Note: `PROJECT_STATE.json` on `main` still carries the pre-gate
-`one_next_action` for the product track ("Close the Docker parity gate..."), and
-`checkpoints/2026-09-08-production-backend-recovery-current.md` still describes
-the gate as the remaining blocker. Those live on `main` and need a separate
-change there to catch up — this file and `ACTIVE_WORK.json` on this branch are
-current.
+### Main state-layer catch-up (2026-09-20)
+
+Previously flagged here as needing a separate change on `main`: the product
+track's `PROJECT_STATE.json` entry and
+`checkpoints/2026-09-08-production-backend-recovery-current.md` both still
+described the parity gate as the open blocker.
+
+That catch-up is now carried **by this PR** instead of by a separate change to
+`main`, which keeps the state layer and the work it describes in one atomic
+merge and avoids a window where `main` claims a blocker that no longer exists:
+
+- `checkpoints/2026-09-20-production-backend-recovery-current.md` — new current
+  product checkpoint carrying the parity evidence;
+- `checkpoints/2026-09-08-production-backend-recovery-current.md` — marked
+  superseded, kept as the record of what the gate demanded;
+- `PROJECT_STATE.json` / `CHECKPOINT_INDEX.json` — product track repointed at
+  the new checkpoint, `one_next_action` moved from "prove parity" to "decide
+  merge readiness".
+
+`.github/workflows/docker-parity.yml` was added to this workstream's
+`scope_paths` so a future edit to the gate marks this file stale instead of
+passing unnoticed.
 
 ## Safety / stop condition
 
@@ -73,5 +100,6 @@ current.
 - do not run the parity test from the live production compose directory;
 - do not mutate production PostgreSQL;
 - do not change DNS, Caddy or UFW as part of this gate;
-- do not merge or deploy PR #3 until Docker parity passes;
+- do not treat merging PR #3 as a deployment — it deploys nothing;
+- do not deploy without owner approval and a recorded rollback tag;
 - do not copy secrets or `.env` values into Git/chat/logs.

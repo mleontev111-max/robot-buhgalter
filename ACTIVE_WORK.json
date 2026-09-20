@@ -11,7 +11,8 @@
       "scope_paths": [
         "server/production/",
         "Dockerfile.backend",
-        "docs/workstreams/production-backend-recovery/"
+        "docs/workstreams/production-backend-recovery/",
+        ".github/workflows/docker-parity.yml"
       ],
       "known_durable_evidence": [
         "bee7919",
@@ -29,8 +30,8 @@
         "workflow": ".github/workflows/docker-parity.yml",
         "verified": "reproducible build from Dockerfile.backend; image config matches recorded production facts (amd64, Alpine 3.23.x, Node v20.20.2, /app, app user, entrypoint, cmd, 8788); no dev dependencies in runtime image; /health; and the Docker-mode gate covering /ready, login, organizations, logout and revoked-session 401"
       },
-      "blocker": "None technical. Docker parity passed on 825acfe (2026-09-20); the gate now re-runs automatically on every push to this branch. Merge readiness is a human decision, and production rollout remains a separate controlled step after merge.",
-      "one_next_action": "Decide merge readiness for PR #3 with the owner: take it out of draft, confirm ordinary CI and Project Ready Guard are green on the same head, and merge. Do not deploy as part of the merge; production rollout is a separate decision with a known rollback tag."
+      "blocker": "None technical. Docker parity passed on 825acfe (2026-09-20) and the gate re-runs automatically on every pull request. Merge readiness is a human decision, and production rollout remains a separate controlled step after merge.",
+      "one_next_action": "Decide merge readiness for PR #3 with the project owner: take it out of draft, confirm ordinary CI, Project Ready Guard and the Docker Parity Gate are green on the same head, and merge. Merging deploys nothing; production rollout to Hetzner is a separate controlled step with its own deployment checkpoint and a known rollback tag."
     }
   }
 }

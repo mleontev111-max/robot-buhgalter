@@ -26,8 +26,17 @@
       "integration_state": "branch",
       "branch": "recovery/production-backend-2026-08-27",
       "pull_request": 3,
-      "summary": "PR #3 unit tests and local PostgreSQL integration checks pass; deterministic Dockerfile is restored. Docker image parity remains unproven.",
+      "summary": "PR #3 unit tests and local PostgreSQL integration checks pass; deterministic Dockerfile is restored.",
       "evidence": "PR #3"
+    },
+    {
+      "id": "production-backend-docker-parity",
+      "status": "verified_unmerged",
+      "integration_state": "branch",
+      "branch": "recovery/production-backend-2026-08-27",
+      "pull_request": 3,
+      "summary": "Docker parity PASSED 2026-09-20 on 825acfe: a test-only linux/amd64 image built from Dockerfile.backend matches the recorded production image config, carries no dev dependencies, serves /health, and passes the Docker-mode PostgreSQL/HTTP gate (/ready, login, organizations, logout, revoked-session 401). The gate is CI now, not a manual runbook step.",
+      "evidence": "checkpoints/2026-09-20-production-backend-recovery-current.md; https://github.com/mleontev111-max/robot-buhgalter/actions/runs/35495348571"
     }
   ]
 }

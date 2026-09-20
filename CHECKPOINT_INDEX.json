@@ -8,7 +8,7 @@
       "status": "active",
       "entrypoint": "PROJECT_STATUS.md",
       "pointer_file": "PROJECT_STATUS.md",
-      "latest_checkpoint": "checkpoints/2026-09-08-production-backend-recovery-current.md"
+      "latest_checkpoint": "checkpoints/2026-09-20-production-backend-recovery-current.md"
     },
     "project_ready": {
       "status": "active",
