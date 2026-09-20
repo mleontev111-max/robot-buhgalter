@@ -26,12 +26,12 @@
     "project_ready": {
       "status": "active",
       "entrypoint": "START_HERE_FOR_AI.md",
-      "latest_checkpoint": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
-      "one_next_action": "After Resume Gate v1.3 is merged to main, synchronize it into PR #3, create or refresh the registered production-backend-recovery workstream STATE file on the exact current PR head, make Project Ready Guard green there, then run a clean-room resume test.",
+      "latest_checkpoint": "checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md",
+      "one_next_action": "Register the frontend_stabilization workstream in main's ACTIVE_WORK.json so npm run resume from main can see those 13 unmerged commits; it is currently registered only on its own branch, which is the exact invisibility Resume Gate exists to prevent. Registration is a continuity fact and does not decide whether that branch merges.",
       "resume_contract": {
         "working_directory": ".",
-        "last_verified_evidence": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md",
-        "first_action": "Verify v1.3 on this rollout PR and merge only with Project Ready Guard + ordinary CI green.",
+        "last_verified_evidence": "checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md",
+        "first_action": "Read the rollout-complete checkpoint; Resume Gate v1.3 is merged, synced into PR #3, guard-green on its head and clean-room verified.",
         "next_command": "npm run resume",
         "stop_condition": "Do not continue production-backend feature/deployment work when the exact relevant continuity guard is red or WIP state is stale."
       }

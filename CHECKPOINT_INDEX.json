@@ -14,7 +14,7 @@
       "status": "active",
       "entrypoint": "START_HERE_FOR_AI.md",
       "pointer_file": "START_HERE_FOR_AI.md",
-      "latest_checkpoint": "checkpoints/2026-09-08-resume-gate-v1-3-baseline.md"
+      "latest_checkpoint": "checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md"
     }
   }
 }

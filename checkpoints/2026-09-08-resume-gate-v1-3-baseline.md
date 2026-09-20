@@ -2,9 +2,14 @@
 
 Date: 2026-09-08
 Track: project_ready
-Checkpoint-Role: latest
+Checkpoint-Role: superseded
 Cross-Track-Current-State: externalized
-Status: ROLLOUT CANDIDATE
+Status: SUPERSEDED — historical evidence only
+Superseded-By: checkpoints/2026-09-20-resume-gate-v1-3-rollout-complete.md
+
+> Every part of the ONE NEXT ACTION below was completed and verified on
+> 2026-09-20. Read the superseding checkpoint for current state; this file
+> is kept as the record of what the rollout set out to do.
 Main baseline: `fcadd123d07b54c091079a25326f48eeb574affc`
 
 ## Scope
