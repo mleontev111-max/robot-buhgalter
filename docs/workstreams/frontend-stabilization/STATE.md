@@ -2,7 +2,7 @@
 
 Workstream: frontend_stabilization
 Workstream-State: current
-Date: 2026-09-17
+Date: 2026-10-13
 Branch: `claude/github-connection-q4t7zr`
 Pull Request: none yet (branch is pushed, no PR opened)
 
@@ -69,14 +69,29 @@ not be reconstructed from memory.
   in Settings and what `tax.ts`'s OSNO calculation already keys off. "Fixing"
   it would have been a regression. No code changed; the misleading comment in
   the test was corrected so this isn't re-flagged.
+- **Адрес сервера синхронизации настраивается** (2026-10-13) — в
+  `src/sections/Connections.tsx` он был жёстко задан как
+  `http://localhost:8787`. Запрос уходит из браузера, то есть с устройства
+  пользователя, поэтому при размещении приложения на отдельном сервере
+  (домашнем, VPS) телефон или ноутбук искал бы сервер синхронизации у себя, и
+  подключения не работали бы ни при какой серверной настройке. Теперь читается
+  `VITE_SYNC_SERVER_URL` на этапе сборки, со старым значением как fallback —
+  локальная разработка не меняется. Проверено: сборка с заданной переменной
+  действительно вшивает адрес в бандл.
+- **Инструкция по размещению на своём сервере** (2026-10-13) —
+  `docs/deployment/HOME_SERVER.md`: задание для серверного специалиста. Фиксирует
+  два жёстких ограничения, которые иначе всплывают уже на развёртывании: HTTPS
+  обязателен (шифрование ключей использует WebCrypto, он работает только в
+  secure context), и сервер синхронизации не имеет авторизации, поэтому контур
+  не публикуется в интернет.
 - **Resume Gate v1.3 merged in** (`6f2285d`) — see the commit for how the
   `package.json` and `README.md` conflicts were resolved.
 
 ## Verification status
 
-Green on this branch head as of 2026-09-17: `npx tsc -b --noEmit`,
+Green on this branch head as of 2026-10-13: `npx tsc -b --noEmit`,
 `npm run lint`, `npm run format:check`, `npm test` (45/45),
-`npm run resume` → `RESUME_VERDICT=PASS`.
+`npm run build`, `npm run resume` → `RESUME_VERDICT=PASS`.
 
 GitHub Actions CI has **never** run on this branch: the workflows trigger on
 `pull_request` or `push` to `main`, and no PR was ever opened. All verification

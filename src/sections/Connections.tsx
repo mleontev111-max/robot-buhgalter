@@ -26,7 +26,12 @@ import {
   setSessionCredentialsKey,
 } from '@/lib/secretCrypto'
 
-const SERVER = 'http://localhost:8787'
+// Адрес сервера синхронизации. Запрос уходит из браузера, то есть с устройства
+// пользователя, поэтому `localhost` верен только когда сервер синхронизации
+// запущен на том же компьютере, где открыто приложение. При размещении
+// приложения на отдельном сервере (домашнем, VPS) задайте на этапе сборки
+// VITE_SYNC_SERVER_URL, иначе телефон или ноутбук будет искать сервер у себя.
+const SERVER = (import.meta.env.VITE_SYNC_SERVER_URL ?? 'http://localhost:8787').replace(/\/+$/, '')
 type Status = 'idle' | 'testing' | 'ok' | 'fail'
 const today = () => new Date().toISOString().slice(0, 10)
 const firstDay = () => `${new Date().getFullYear()}-01-01`
