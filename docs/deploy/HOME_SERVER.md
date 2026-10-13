@@ -1,387 +1,442 @@
-# Задание: перенести «Робота-бухгалтера» с Hetzner на iMac и убрать его с Hetzner
+# Задание: «Робот-бухгалтер» на домашнем сервере (iMac, Ubuntu) и уборка остатков
 
 Адресат: системный администратор / серверный специалист.
-Дата постановки: 2026-10-13.
+Версия 2, 2026-10-13. Заменяет версию 1 (macOS/brew/launchd), которая к этому
+серверу неприменима.
 Репозиторий: `https://github.com/mleontev111-max/robot-buhgalter`
 
-Задание состоит из трёх этапов. Делать строго по порядку: этап 2 начинать только
-после того, как владелец подтвердил приёмку этапа 1.
+## Исходное состояние (по описи специалиста от 2026-10-13)
+
+**iMac `192.168.1.80`** (Apple iMac12,2, Ubuntu 24.04.3, hostname `thechai-node-01`):
+
+- работает compose-стек `/srv/thechai/apps/ops-stack`, в нём общий
+  `project2-postgres` (данные в `/srv/thechai/apps/ops-stack/postgres-data`);
+- в этом же стеке контейнер `robot-buhgalter-api` (`127.0.0.1:8788`, образ
+  `robot-buhgalter-api:20260825-1636-bootstrap-fix`, база `robot_buhgalter`,
+  `users` = 0, `organizations` = 0);
+- `127.0.0.1:8787` занят `thechai-master-catalog-review`;
+- порты `80`, `443`, `8790` свободны; веб-сервера нет; Avahi нет;
+- второй адрес по Wi-Fi `192.168.1.69`.
+
+**Hetzner `ai-vpn`**: контейнера робота, `project2-postgres` и
+`/opt/apps/robot-buhgalter` нет. Остался только cron
+`/etc/cron.d/robot-buhgalter-backup`, который ссылается на удалённый каталог.
+
+**Данных для переноса нет**: реальный учёт не вёлся (резервная копия браузера
+содержит только встроенный демо-набор, в базе робота 0 записей).
+
+## Решения владельца
+
+- Приложение работает на iMac. Доступ только из домашней сети.
+- Серверный бэкенд `robot-buhgalter-api` (PR #3) не используется: фронтенд его не
+  вызывает. Он удаляется с iMac, код остаётся в GitHub как архив.
+- Сайт kolyman.ru (GitHub Pages) выключается.
+
+## Этапы
 
 | Этап | Что | Кто |
 |---|---|---|
-| 1 | Поднять приложение на iMac | специалист |
-| 2 | Удалить робота с Hetzner (`ai-vpn`), не задев остальное | специалист |
-| 3 | Выключить kolyman.ru, закрыть PR #3, обновить документацию | владелец / Claude |
+| 1 | Поднять фронтенд и сервер синхронизации на iMac | специалист |
+| 2 | Убрать `robot-buhgalter-api` и его базу с iMac | специалист, после приёмки этапа 1 |
+| 3 | Убрать остаток на Hetzner (cron) | специалист |
+| 4 | Выключить kolyman.ru, закрыть PR #3, обновить документацию | владелец / Claude |
 
-Переносить данные не нужно: реальный учёт в приложении ещё не вёлся
-(проверено по резервной копии от 2026-10-13, в ней только встроенный демо-набор).
+Общие правила для всех этапов:
 
----
-
-## Что именно сейчас работает и что переезжает
-
-Приложение состоит из двух частей, обе из этого репозитория:
-
-- **Frontend.** Статика, собирается в `dist/`. Все данные (организации, операции,
-  ключи) хранятся в `localStorage` браузера пользователя, серверной базы нет.
-- **Сервер синхронизации** `server/index.mjs`, Node, порт `8787`. Read-only прокси
-  к API маркетплейсов. Ключи не хранит: они приходят в теле запроса.
-
-На iMac переезжают обе части.
-
-На Hetzner сейчас работает **другой** компонент: серверный бэкенд
-`robot-buhgalter-api-1` (порт `127.0.0.1:8788`) с базой в PostgreSQL. Приложение
-его не вызывает: фронтенд ходит только в сервер синхронизации. Владелец решил этот
-бэкенд не переносить, а удалить. Его код остаётся в GitHub в ветке
-`recovery/production-backend-2026-08-27`.
-
-Чего на iMac не будет, чтобы не было неверных ожиданий:
-
-- учётных записей и входа по паролю: кто открыл страницу, тот видит данные;
-- фоновой синхронизации: она запускается вручную из интерфейса;
-- хранения данных на iMac: данные живут в браузере Mac mini. Другое устройство
-  увидит пустое приложение.
+- Не трогать сервисы thechai, `thechai-master-catalog-review`, порт `8787`,
+  `project2-postgres` как контейнер, его данные и чужие базы в нём.
+- Не перезапускать весь `ops-stack` (`docker compose up -d`, `down`, `restart`
+  без имени сервиса запрещены).
+- Не выводить в терминал, лог или чат содержимое `.env`, пароли, `DATABASE_URL`.
+- Перед каждым удалением: что именно удаляется, присылается владельцу, и
+  удаление идёт только после его «да».
 
 ---
 
-# Этап 1. iMac
+# Этап 1. Фронтенд и сервер синхронизации на iMac
 
-## 1.1. Какую ветку брать
+## 1.1. Схема
 
-Собирать с ветки `claude/github-connection-q4t7zr`. В `main` адрес сервера
-синхронизации жёстко зашит как `http://localhost:8787`, и с другого компьютера
-приложение работать не будет. В этой ветке адрес задаётся переменной сборки
-`VITE_SYNC_SERVER_URL`, сервер по умолчанию слушает только `127.0.0.1`.
+```
+Mac mini (браузер)
+   │  https://192.168.1.80
+   ▼
+Caddy :443 (iMac)
+   ├── /        → статика /srv/robot-buhgalter/app/dist
+   └── /sync/*  → 127.0.0.1:8790  (server/index.mjs, systemd)
+```
 
-Когда владелец вольёт эту ветку в `main`, на iMac нужно один раз выполнить
-`git checkout main && git pull` и дальше обновляться с `main` (п. 1.7).
+Адрес: `https://192.168.1.80`. Имя `.local` не используем: Avahi на сервере нет, и
+ставить его ради этого не нужно. Wi-Fi-адрес `192.168.1.69` не используем:
+сертификат и `ALLOWED_ORIGINS` будут выписаны только на `192.168.1.80`.
 
-## 1.2. Подготовка iMac
+HTTPS обязателен: шифрование ключей в браузере (WebCrypto) работает только в
+secure context, а страница по HTTPS не может ходить к серверу по HTTP (mixed
+content).
+
+## 1.2. Подготовка
 
 ```bash
 ssh mikhail@192.168.1.80
-uname -m                      # arm64 = Apple Silicon, x86_64 = Intel
-brew --prefix                 # /opt/homebrew или /usr/local
-scutil --get LocalHostName    # ожидается iMac-Mikhail
-fdesetup status               # результат сообщить владельцу, см. ниже
+node --version 2>/dev/null; which node
+sudo ufw status verbose
 ```
 
-Дальше в тексте адрес `iMac-Mikhail.local` и путь `/opt/homebrew`. Если
-`LocalHostName` или префикс Homebrew другие, подставить фактические **везде**:
-в сборке, plist, Caddyfile и проверках.
+`192.168.1.80` должен быть закреплён за Ethernet-портом iMac резервированием DHCP
+на роутере. Если не закреплён, сделать это и сообщить.
 
-**FileVault.** Если `fdesetup status` показывает `FileVault is On`, после любой
-перезагрузки (в том числе ночного обновления macOS) диск остаётся зашифрованным
-до входа пользователя, и ни один сервис не поднимется. Не отключать FileVault
-самостоятельно: сообщить владельцу, решение за ним. Варианты: выключить FileVault
-или договориться, что после перезагрузки кто-то входит в систему на iMac.
-
-Сон и питание:
+Node.js 20. Если в системе уже есть Node 20+ и он используется сервисами thechai,
+не переустанавливать и не обновлять его, а использовать как есть. Если Node нет
+или версия ниже 20, поставить отдельно, не трогая системный:
 
 ```bash
-sudo pmset -a sleep 0
-sudo pmset -a disksleep 0
-sudo pmset -a womp 1
-sudo pmset -a autorestart 1
-pmset -g | grep -E 'sleep|womp|autorestart'
+# вариант без влияния на thechai: отдельная копия Node только для робота
+sudo mkdir -p /srv/robot-buhgalter
+cd /tmp
+curl -fsSLO https://nodejs.org/dist/v20.20.2/node-v20.20.2-linux-x64.tar.xz
+curl -fsSL https://nodejs.org/dist/v20.20.2/SHASUMS256.txt | grep node-v20.20.2-linux-x64.tar.xz | sha256sum -c -
+sudo tar -xJf node-v20.20.2-linux-x64.tar.xz -C /srv/robot-buhgalter
+sudo ln -sfn /srv/robot-buhgalter/node-v20.20.2-linux-x64 /srv/robot-buhgalter/node
+/srv/robot-buhgalter/node/bin/node --version
 ```
 
-Закрепить `192.168.1.80` за iMac резервированием DHCP на роутере.
+Дальше `NODE=/srv/robot-buhgalter/node/bin` (или каталог уже установленного
+Node 20, если он есть).
 
-## 1.3. Установка и сборка
+## 1.3. Пользователь и код
+
+Отдельный системный пользователь, без входа в систему:
 
 ```bash
-brew install node@20 caddy
-echo 'export PATH="'"$(brew --prefix)"'/opt/node@20/bin:$PATH"' >> ~/.zprofile
-source ~/.zprofile
-node --version                # ожидается v20.x
-
-sudo mkdir -p /opt/robot-buhgalter
-sudo chown mikhail:staff /opt/robot-buhgalter
-git clone https://github.com/mleontev111-max/robot-buhgalter.git /opt/robot-buhgalter
-cd /opt/robot-buhgalter
-git checkout claude/github-connection-q4t7zr
-npm ci
-npm test
-VITE_SYNC_SERVER_URL=https://iMac-Mikhail.local/sync npm run build
+sudo useradd --system --home /srv/robot-buhgalter --shell /usr/sbin/nologin robot-sync
+sudo chown robot-sync:robot-sync /srv/robot-buhgalter
+sudo -u robot-sync git clone https://github.com/mleontev111-max/robot-buhgalter.git /srv/robot-buhgalter/app
+cd /srv/robot-buhgalter/app
+sudo -u robot-sync git checkout claude/github-connection-q4t7zr
 ```
 
-`chown` делать только на `/opt/robot-buhgalter`, не на весь `/opt`: на Apple
-Silicon там лежит Homebrew.
+Ветка `claude/github-connection-q4t7zr`: только в ней адрес сервера синхронизации
+задаётся при сборке. В `main` он зашит как `http://localhost:8787`. Когда владелец
+вольёт ветку в `main`, один раз выполнить
+`sudo -u robot-sync git checkout main && sudo -u robot-sync git pull`.
 
-`VITE_SYNC_SERVER_URL` вшивается в бандл при сборке. Это адрес, по которому сервер
-доступен **из браузера Mac mini**, поэтому `localhost` здесь не годится.
-
-## 1.4. Сервер синхронизации (launchd)
-
-Файл `/Library/LaunchDaemons/ru.robot-buhgalter.sync.plist`. Сервис работает от
-пользователя `mikhail`, не от root:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>ru.robot-buhgalter.sync</string>
-  <key>UserName</key><string>mikhail</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/opt/homebrew/opt/node@20/bin/node</string>
-    <string>/opt/robot-buhgalter/server/index.mjs</string>
-  </array>
-  <key>WorkingDirectory</key><string>/opt/robot-buhgalter</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PORT</key><string>8787</string>
-    <key>ALLOWED_ORIGINS</key><string>https://iMac-Mikhail.local</string>
-  </dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>/opt/robot-buhgalter/logs/sync.log</string>
-  <key>StandardErrorPath</key><string>/opt/robot-buhgalter/logs/sync.err</string>
-</dict>
-</plist>
-```
-
-На Intel путь к Node: `/usr/local/opt/node@20/bin/node`.
+## 1.4. Сборка
 
 ```bash
-mkdir -p /opt/robot-buhgalter/logs
-sudo chown root:wheel /Library/LaunchDaemons/ru.robot-buhgalter.sync.plist
-sudo chmod 644 /Library/LaunchDaemons/ru.robot-buhgalter.sync.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/ru.robot-buhgalter.sync.plist
-curl -sS http://127.0.0.1:8787/api/health
+cd /srv/robot-buhgalter/app
+export PATH=$NODE:$PATH
+sudo -u robot-sync env PATH=$PATH npm ci
+sudo -u robot-sync env PATH=$PATH npm test
+sudo -u robot-sync env PATH=$PATH VITE_SYNC_SERVER_URL=https://192.168.1.80/sync npm run build
+ls dist/index.html
 ```
 
-Ожидается `{"ok":true,"service":"robot-buhgalter-sync"}`.
+iMac 2011 года: сборка может занять несколько минут, это нормально.
 
-`ALLOWED_ORIGINS` должен совпадать с адресом страницы символ в символ: схема, хост,
-порт, без слэша в конце. Переменную `HOST` не задавать.
+## 1.5. Сервер синхронизации (systemd, порт 8790)
 
-## 1.5. Caddy (HTTPS)
+`/etc/systemd/system/robot-buhgalter-sync.service`:
 
-HTTPS обязателен по двум причинам. Шифрование ключей в браузере (WebCrypto)
-работает только по HTTPS. А страница по HTTPS не может обращаться к серверу по
-HTTP: браузер заблокирует это как mixed content.
+```ini
+[Unit]
+Description=Robot-Buhgalter marketplace sync proxy
+After=network-online.target
+Wants=network-online.target
 
-Файл `$(brew --prefix)/etc/Caddyfile`:
+[Service]
+User=robot-sync
+Group=robot-sync
+WorkingDirectory=/srv/robot-buhgalter/app
+Environment=PORT=8790
+Environment=HOST=127.0.0.1
+Environment=ALLOWED_ORIGINS=https://192.168.1.80
+ExecStart=/srv/robot-buhgalter/node/bin/node server/index.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/srv/robot-buhgalter
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Если используется уже установленный Node, поправить путь в `ExecStart`.
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now robot-buhgalter-sync
+systemctl status robot-buhgalter-sync --no-pager
+curl -sS http://127.0.0.1:8790/api/health
+sudo ss -ltnp | grep -E ':8787|:8790'
+```
+
+Ожидается `{"ok":true,"service":"robot-buhgalter-sync"}`; `8790` слушается только
+на `127.0.0.1`; `8787` по-прежнему принадлежит каталогу чая.
+
+`ALLOWED_ORIGINS` должен совпадать с адресом страницы символ в символ, без слэша
+в конце.
+
+## 1.6. Caddy (HTTPS на 192.168.1.80)
+
+```bash
+sudo apt update
+sudo apt install -y caddy
+caddy version
+```
+
+`/etc/caddy/Caddyfile` (пакет кладёт туда пример, заменить целиком; других сайтов
+в нём нет, так как веб-сервера на iMac не было):
 
 ```caddy
-iMac-Mikhail.local {
+{
+    # Внутренний CA, сертификат на IP. Без обращений к Let's Encrypt.
+    local_certs
+}
+
+https://192.168.1.80 {
     tls internal
     encode gzip
 
     handle_path /sync/* {
-        reverse_proxy 127.0.0.1:8787
+        reverse_proxy 127.0.0.1:8790
     }
 
     handle {
-        root * /opt/robot-buhgalter/dist
+        root * /srv/robot-buhgalter/app/dist
         try_files {path} /index.html
         file_server
     }
 }
+
+http://192.168.1.80 {
+    redir https://192.168.1.80{uri} permanent
+}
 ```
 
 ```bash
-caddy validate --config "$(brew --prefix)/etc/Caddyfile"
-sudo brew services start caddy      # от root, чтобы занять порт 443
-sudo brew services list
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy || sudo systemctl restart caddy
+sudo systemctl enable caddy
+curl -sk https://192.168.1.80/sync/api/health
 ```
 
-## 1.6. Сертификат на Mac mini
-
-На iMac:
+Файрвол. Если `ufw` активен, открыть 80/443 только для домашней сети:
 
 ```bash
-sudo find /var/root/Library/Application\ Support/Caddy -name root.crt
+sudo ufw allow from 192.168.1.0/24 to any port 80,443 proto tcp
 ```
 
-Скопировать файл на Mac mini и добавить в доверенные:
+Порт `8790` не открывать. Проброс портов на роутере не настраивать.
+
+## 1.7. Сертификат на Mac mini
+
+На iMac корневой сертификат Caddy лежит здесь:
 
 ```bash
+sudo ls /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+sudo cp /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt /tmp/robot-root.crt
+sudo chmod 644 /tmp/robot-root.crt
+```
+
+На Mac mini:
+
+```bash
+scp mikhail@192.168.1.80:/tmp/robot-root.crt ~/Downloads/
 sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain ~/Downloads/root.crt
+  -k /Library/Keychains/System.keychain ~/Downloads/robot-root.crt
 ```
 
-Перезапустить браузер на Mac mini.
+Затем на iMac `sudo rm /tmp/robot-root.crt`, на Mac mini перезапустить браузер.
+Копировать только `root.crt`; файл `root.key` никуда не копировать.
 
-## 1.7. Обновление
+## 1.8. Обновление
 
 ```bash
-cd /opt/robot-buhgalter
-git pull
-npm ci
-npm test
-VITE_SYNC_SERVER_URL=https://iMac-Mikhail.local/sync npm run build
-sudo launchctl kickstart -k system/ru.robot-buhgalter.sync
+cd /srv/robot-buhgalter/app
+export PATH=/srv/robot-buhgalter/node/bin:$PATH
+sudo -u robot-sync git pull
+sudo -u robot-sync env PATH=$PATH npm ci
+sudo -u robot-sync env PATH=$PATH npm test
+sudo -u robot-sync env PATH=$PATH VITE_SYNC_SERVER_URL=https://192.168.1.80/sync npm run build
+sudo systemctl restart robot-buhgalter-sync
 ```
 
-## 1.8. Безопасность iMac
+## 1.9. Приёмка этапа 1 (проверять с Mac mini)
 
-- В интернет не публиковать. Проброс портов на роутере не настраивать. Доступ
-  только из домашней сети или через VPN: у сервера синхронизации и у приложения
-  нет авторизации.
-- Порт `8787` наружу не открывать, сервер слушает только `127.0.0.1`.
-- API-ключи маркетплейсов только read-only. На iMac они не попадают никуда: ни в
-  plist, ни в `.env`, ни в логи. Владелец вводит их в браузере.
-
-## 1.9. Приёмка этапа 1 (всё проверять с Mac mini)
-
-1. `https://iMac-Mikhail.local` открывается, сертификат доверенный, в консоли
-   браузера нет ошибок.
-2. `https://iMac-Mikhail.local/sync/api/health` отдаёт
+1. `https://192.168.1.80` открывается без предупреждения о сертификате,
+   приложение отрисовано, в консоли браузера нет ошибок.
+2. `https://192.168.1.80/sync/api/health` отдаёт
    `{"ok":true,"service":"robot-buhgalter-sync"}`.
-3. На странице «Подключения» сервер синхронизации в состоянии «доступен».
-4. В консоли нет ошибок CORS и предупреждений mixed content.
-5. Проверка одного реального read-only ключа («Проверить») проходит.
+3. На странице «Подключения» сервер синхронизации «доступен».
+4. В консоли нет ошибок CORS и mixed content.
+5. Проверка одного реального read-only ключа проходит.
 6. Синхронизация за `01.01.2026 – 30.09.2026` по одному кабинету возвращает
    непустой список операций.
 7. Шифрование ключей паролем включается без ошибок.
-8. `nc -vz 192.168.1.80 8787` с Mac mini завершается отказом.
-9. После перезагрузки iMac приложение и `/sync/api/health` снова доступны.
-   Если FileVault включён, указать, понадобился ли вход в систему.
-10. `pmset -g` показывает `sleep 0` и `autorestart 1`.
-11. Обновление по п. 1.7 выполнено хотя бы один раз и прошло без ошибок.
+8. `nc -vz 192.168.1.80 8790` и `nc -vz 192.168.1.80 8788` с Mac mini
+   завершаются отказом.
+9. Каталог чая на `8787` работает так же, как до начала работ.
+10. После `sudo reboot` iMac приложение и `/sync/api/health` снова доступны без
+    ручных действий.
+11. Обновление по п. 1.8 выполнено хотя бы один раз.
 
-Отчёт: адрес, значение `VITE_SYNC_SERVER_URL`, результат `fdesetup status`,
-результат по каждому из 11 пунктов. **После отчёта дождаться подтверждения
-владельца, только потом переходить к этапу 2.**
+Отчёт: результат по 11 пунктам, какой Node использован (свой или существующий),
+был ли активен `ufw`. **Дальше только после подтверждения владельца.**
 
 ---
 
-# Этап 2. Удаление робота с Hetzner
+# Этап 2. Удаление `robot-buhgalter-api` с iMac
 
-Сервер `ai-vpn` **общий**. На нём работают другие проекты (в том числе project2)
-и VPN. База робота лежит в контейнере `project2-postgres`, который принадлежит
-project2. Удаляется только то, что относится к роботу. Сервер, контейнер
-`project2-postgres`, сеть `apps-net`, чужие сайты в Caddy не трогать.
-
-Доступ: `ssh mihail@ai-vpn` (пользователь с `sudo`), ключ по согласованию с
-владельцем.
-
-Нельзя: выводить в терминал, лог или чат содержимое `.env` целиком, пароли и
-`DATABASE_URL`; класть копии в Git, почту или мессенджеры.
+Контейнер не нужен: фронтенд его не вызывает, в базе 0 пользователей и 0
+организаций. Удаляется только сервис робота и его база. Стек `ops-stack`,
+контейнер `project2-postgres` и остальные базы остаются.
 
 ## 2.1. Опись (ничего не менять)
 
 ```bash
-cd /opt/apps/robot-buhgalter && ls -la
-docker compose ps
-docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' | grep -i robot
-docker images | grep -i robot
-sudo ss -ltnp | grep 8788
-sudo crontab -l; crontab -l; ls /etc/cron.d
-sudo ufw status numbered
+cd /srv/thechai/apps/ops-stack
+ls -la
+docker compose config --services
+grep -n -i robot compose*.y*ml docker-compose*.y*ml 2>/dev/null
+ls -la | grep -i -E 'robot|\.env'
+docker exec project2-postgres psql -U postgres -c '\l'
+docker exec project2-postgres psql -U postgres -c '\du'
+docker exec project2-postgres psql -U postgres -d robot_buhgalter -c '\dt'
 ```
 
-Найти, где работает Caddy (на хосте или в контейнере) и какие блоки ссылаются на
-робота:
+Если суперпользователь не `postgres`, взять имя из конфигурации стека, не меняя
+её.
+
+Прислать владельцу: имя сервиса робота в compose, какие строки compose-файла к
+нему относятся, есть ли отдельный env-файл робота, список ролей, которые
+принадлежат роботу (обычно `robot_buhgalter*`), и подтверждение, что эти роли
+не владеют объектами в других базах:
 
 ```bash
-systemctl status caddy --no-pager 2>/dev/null | head -5
-docker ps --format '{{.Names}}' | grep -i caddy
-sudo grep -rn -i -E 'robot|8788' /etc/caddy 2>/dev/null
+for db in $(docker exec project2-postgres psql -U postgres -Atc "select datname from pg_database where not datistemplate and datname <> 'robot_buhgalter'"); do
+  echo "== $db"; docker exec project2-postgres psql -U postgres -d "$db" -Atc \
+  "select count(*) from pg_class c join pg_roles r on r.oid=c.relowner where r.rolname like 'robot%'"
+done
 ```
 
-Найти базу и роли робота **по факту**, не по догадке:
-
-```bash
-docker exec -it project2-postgres psql -U postgres -c '\l'
-docker exec -it project2-postgres psql -U postgres -c '\du'
-```
-
-Если суперпользователь называется не `postgres`, взять имя из конфигурации
-project2, не меняя её.
-
-Прислать владельцу опись: имя базы робота, роли робота, какие блоки Caddy, cron и
-UFW относятся к роботу. **Без подтверждения владельца дальше не идти.**
+Везде должно быть `0`. Если нет, остановиться и сообщить.
 
 ## 2.2. Резервная копия
-
-Удаляемое может понадобиться, если окажется, что что-то было завязано на робота.
 
 ```bash
 TS=$(date +%Y%m%d-%H%M)
 mkdir -p ~/robot-archive-$TS
-docker exec project2-postgres pg_dump -U postgres -Fc <БАЗА_РОБОТА> > ~/robot-archive-$TS/db.dump
-sudo tar czf ~/robot-archive-$TS/app-dir.tgz -C /opt/apps robot-buhgalter
-docker image save robot-buhgalter-api -o ~/robot-archive-$TS/image.tar   # если образ есть
+cd /srv/thechai/apps/ops-stack
+cp -a compose*.y*ml docker-compose*.y*ml ~/robot-archive-$TS/ 2>/dev/null
+docker exec project2-postgres pg_dump -U postgres -Fc robot_buhgalter > ~/robot-archive-$TS/robot_buhgalter.dump
+docker exec project2-postgres pg_dumpall -U postgres --roles-only > ~/robot-archive-$TS/roles.sql
 ls -lh ~/robot-archive-$TS
 ```
 
-Архив содержит `.env` с секретами. Скачать его владельцу по `scp` в зашифрованное
-место (например, зашифрованный образ диска на Mac), затем удалить с сервера.
-Срок хранения: 3 месяца, дальше владелец удаляет.
+Если у робота есть отдельный env-файл, скопировать его туда же. Архив содержит
+секреты: передать владельцу по `scp` в зашифрованное место, после этого удалить с
+сервера. Хранить 3 месяца.
 
-## 2.3. Остановка и удаление
+## 2.3. Удаление (после «да» владельца по описи)
+
+Остановить и удалить только сервис робота (имя из описи):
 
 ```bash
-cd /opt/apps/robot-buhgalter
-docker compose down
-docker image rm <образы робота из описи>
+cd /srv/thechai/apps/ops-stack
+docker compose stop <СЕРВИС_РОБОТА>
+docker compose rm -f <СЕРВИС_РОБОТА>
 ```
 
-База и роли робота (имена из описи, подтверждённые владельцем):
+Убрать блок сервиса робота из compose-файла (и его env-файл, если он отдельный),
+иначе следующий `docker compose up -d` поднимет робота снова. Удалить из
+`depends_on` других сервисов ссылки на робота, если они есть. Проверить:
 
 ```bash
-docker exec -it project2-postgres psql -U postgres -c 'DROP DATABASE <БАЗА_РОБОТА>;'
-docker exec -it project2-postgres psql -U postgres -c 'DROP ROLE <РОЛЬ_1>;'
+docker compose config --quiet && echo OK
+docker compose config --services
+```
+
+База и роли (имена из описи):
+
+```bash
+docker exec project2-postgres psql -U postgres -c 'DROP DATABASE robot_buhgalter;'
+docker exec project2-postgres psql -U postgres -c 'DROP ROLE <РОЛЬ_1>;'
 # повторить для каждой роли робота
 ```
 
-Если `DROP ROLE` отвечает, что роль владеет объектами в другой базе, остановиться
-и сообщить владельцу: значит, роль используется где-то ещё.
-
-Caddy: удалить блок(и) робота, затем
+Образ:
 
 ```bash
-sudo caddy validate --config /etc/caddy/Caddyfile   # путь по факту из описи
-sudo systemctl reload caddy                          # или reload в контейнере
+docker image rm robot-buhgalter-api:20260825-1636-bootstrap-fix
+docker images | grep -i robot
 ```
 
-Удалить cron-задачи и правила UFW робота, если они нашлись в описи. Затем:
-
-```bash
-sudo rm -rf /opt/apps/robot-buhgalter
-```
+Если на iMac есть cron или systemd-таймеры бэкапа робота
+(`grep -ril robot /etc/cron* /etc/systemd/system`), показать владельцу и удалить
+после подтверждения.
 
 ## 2.4. Приёмка этапа 2
 
-1. `docker ps -a | grep -i robot` пусто.
-2. `sudo ss -ltnp | grep 8788` пусто.
-3. `\l` и `\du` в `project2-postgres` не показывают базу и роли робота.
-4. project2 работает так же, как до начала работ (проверить его основной адрес).
-5. Остальные сайты на Caddy отвечают; `caddy validate` без ошибок.
-6. `/opt/apps/robot-buhgalter` отсутствует.
-7. Архив передан владельцу и удалён с сервера.
-
-Отчёт: что удалено (контейнеры, образы, база, роли, блоки Caddy, cron, UFW) и
-результат по 7 пунктам.
+1. `docker ps -a | grep robot-buhgalter-api` пусто; `ss -ltnp | grep 8788` пусто.
+2. `docker compose config --services` в `ops-stack` не содержит робота, остальные
+   сервисы на месте и в состоянии `running`/`healthy`.
+3. `\l` и `\du` не показывают базу и роли робота; остальные базы на месте.
+4. Каталог чая (`8787`) и остальные сервисы thechai работают.
+5. Приложение на `https://192.168.1.80` работает (оно от этого контейнера не
+   зависит).
+6. Архив передан владельцу и удалён с сервера.
 
 ---
 
-# Этап 3. Выключение kolyman.ru и порядок в репозитории (владелец / Claude)
+# Этап 3. Остаток на Hetzner
 
-Выполняется после приёмки этапа 2.
+```bash
+cat /etc/cron.d/robot-buhgalter-backup
+sudo grep -rl -i robot /etc/cron.d /etc/cron.daily /etc/systemd/system 2>/dev/null
+sudo find / -xdev \( -iname '*robot-buhgalter*' -o -iname '*robot_buhgalter*' \) 2>/dev/null | grep -v '^/proc'
+```
+
+Последняя команда ищет старые бэкапы робота (дампы, архивы), которые мог
+оставить этот cron. Список прислать владельцу. После подтверждения:
+
+```bash
+sudo rm /etc/cron.d/robot-buhgalter-backup
+# и найденные файлы робота по списку, согласованному с владельцем
+```
+
+Caddy на Hetzner не трогать: маршрута робота в нём нет.
+
+---
+
+# Этап 4. Выключение kolyman.ru и порядок в репозитории (владелец / Claude)
+
+После приёмки этапов 2 и 3:
 
 1. GitHub → репозиторий → Settings → Pages: снять публикацию.
-2. Удалить из репозитория `CNAME` и `.github/workflows/deploy-pages.yml`, чтобы
-   сайт не опубликовался снова при следующем слиянии в `main`.
-3. У регистратора домена удалить записи `kolyman.ru`, указывающие на GitHub Pages.
-   Сам домен остаётся за владельцем.
-4. Закрыть PR #3 без слияния. Ветку `recovery/production-backend-2026-08-27`
-   не удалять: это архив кода бэкенда.
-5. Обновить `README.md`, `AGENTS.md`, `PROJECT_STATUS.md`, `PROJECT_STATE.json`,
-   `ACTIVE_WORK.json` и сделать checkpoint: приложение работает на iMac,
-   Hetzner больше не используется, PR #3 в архиве.
+2. Удалить из репозитория `CNAME` и `.github/workflows/deploy-pages.yml`.
+3. У регистратора удалить DNS-записи `kolyman.ru`, указывающие на GitHub Pages.
+   Домен остаётся за владельцем.
+4. Убрать `https://kolyman.ru` и `https://www.kolyman.ru` из `defaultOrigins` в
+   `server/index.mjs`.
+5. Закрыть PR #3 без слияния; ветку `recovery/production-backend-2026-08-27` не
+   удалять.
+6. Обновить `README.md`, `AGENTS.md`, `PROJECT_STATUS.md`, `PROJECT_STATE.json`,
+   `ACTIVE_WORK.json`, сделать checkpoint: приложение работает на iMac
+   `192.168.1.80` (Ubuntu), Hetzner и серверный бэкенд не используются.
 
 ---
 
-## Риск, который остаётся после переезда
+## Риски, которые остаются
 
-Данные хранятся в браузере Mac mini, а не на iMac. Если Mac mini сломается или
-данные сайта будут очищены, всё пропадёт. Единственная защита: регулярный экспорт
-(«Настройки» → «Скачать безопасную копию») раз в неделю в папку, которая попадает
-в Time Machine или iCloud Drive.
+- **Данные живут в браузере Mac mini.** Сломается Mac mini или очистятся данные
+  сайта, и учёт пропадёт. Защита: экспорт «Настройки» → «Скачать безопасную
+  копию» раз в неделю в папку, которая попадает в Time Machine или iCloud Drive.
+- **Сертификат доверен только на Mac mini.** С телефона или другого компьютера
+  приложение откроется с предупреждением, а шифрование ключей там работать не
+  будет, пока на это устройство не установлен `root.crt`.
+- **iMac 2011 года.** Если диск в нём механический и старый, его отказ уронит и
+  каталог чая. Для робота это не потеря данных (они на Mac mini), но стоит
+  проверить `smartctl -H` на диске iMac.
