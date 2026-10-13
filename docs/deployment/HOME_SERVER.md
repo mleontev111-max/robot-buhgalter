@@ -52,6 +52,7 @@ Read-only прокси к API маркетплейсов: принимает о�
 ## 3. Требования к окружению
 
 - Node.js 20 и npm (сборка frontend и запуск сервера синхронизации).
+- Если сервером выступает Mac — см. дополнительно п. 5.4.
 - Reverse proxy с TLS. Подойдёт Caddy (проще всего) или nginx.
 - Исходящий HTTPS с сервера к:
   - `api-seller.ozon.ru`
@@ -103,7 +104,10 @@ VITE_SYNC_SERVER_URL=https://buh.example.lan/sync npm run build
 
 ### 5.2. Сервер синхронизации
 
-Слушать только loopback и выставлять наружу через reverse proxy.
+Сервер синхронизации с версии от 2026-10-13 слушает `127.0.0.1` по умолчанию —
+отдельно настраивать это не нужно, и порт `8787` в домашней сети не появится.
+Переопределяется переменной `HOST`, но для этой задачи её задавать не надо.
+
 `ALLOWED_ORIGINS` обязателен: по умолчанию разрешены только `localhost:3000` и
 несколько внешних origin, ваш домен в этот список не входит, и браузер получит
 ошибку CORS.
@@ -166,6 +170,92 @@ buh.example.lan {
 `index.html` для статики и проксирование `/sync` на `127.0.0.1:8787` без
 переписывания тела запроса.
 
+## 5.4. Вариант для macOS (сервер на Mac)
+
+Если сервером выступает Mac, отличается не «всё», а четыре вещи. Остальные
+разделы читаются как есть.
+
+**Node и Caddy — через Homebrew:**
+
+```bash
+brew install node@20 caddy
+# node@20 — keg-only, его нужно добавить в PATH:
+echo 'export PATH="/opt/homebrew/opt/node@20/bin:$PATH"' >> ~/.zprofile
+```
+
+**Вместо systemd — launchd.** `LaunchDaemon` в
+`/Library/LaunchDaemons/ru.robot-buhgalter.sync.plist` (запуск при загрузке
+машины, до входа пользователя):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>ru.robot-buhgalter.sync</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/opt/node@20/bin/node</string>
+    <string>/opt/robot-buhgalter/server/index.mjs</string>
+  </array>
+  <key>WorkingDirectory</key><string>/opt/robot-buhgalter</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PORT</key><string>8787</string>
+    <key>ALLOWED_ORIGINS</key><string>https://ИМЯ-СЕРВЕРА.local</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/log/robot-buhgalter-sync.log</string>
+  <key>StandardErrorPath</key><string>/var/log/robot-buhgalter-sync.err</string>
+</dict>
+</plist>
+```
+
+```bash
+sudo chown root:wheel /Library/LaunchDaemons/ru.robot-buhgalter.sync.plist
+sudo chmod 644 /Library/LaunchDaemons/ru.robot-buhgalter.sync.plist
+sudo launchctl bootstrap system /Library/LaunchDaemons/ru.robot-buhgalter.sync.plist
+```
+
+**Caddy на 443 требует root.** `brew services start caddy` запускается от
+пользователя и привилегированный порт занять не сможет. Нужно
+`sudo brew services start caddy` — тогда Caddy стартует как LaunchDaemon от
+root.
+
+**Mac не должен засыпать** — иначе сервис периодически недоступен, и это
+выглядит как «приложение глючит». Проверить обязательно:
+
+```bash
+sudo pmset -a sleep 0
+sudo pmset -a disablesleep 1   # для ноутбука; для десктопа достаточно sleep 0
+pmset -g | grep -E 'sleep|hibernatemode'
+```
+
+Плюс в «Системных настройках → Экономия энергии» снять автоматический сон и
+включить автозапуск после сбоя питания.
+
+**Имя и адрес.** У Mac есть Bonjour-имя `<имя>.local`, которое резолвится в
+домашней сети без настройки DNS — его и используйте как адрес сайта в Caddy.
+Адрес в локальной сети закрепите либо вручную в настройках сети, либо
+резервированием DHCP на роутере, иначе он со временем изменится.
+
+Корневой сертификат внутреннего CA Caddy надо доверить на **клиентской**
+машине, а не только на сервере:
+
+```bash
+# на сервере — показать, где лежит корневой сертификат
+sudo find /var/root/Library/Application\ Support/Caddy -name 'root.crt'
+```
+
+Скопировать его на клиентский Mac и установить:
+
+```bash
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain root.crt
+```
+
 ## 6. Требования безопасности
 
 Это не пожелания, а условия задачи.
@@ -175,8 +265,9 @@ buh.example.lan {
   Он не хранит ключей, но любой, кто до него дотянется, заставит его обращаться
   к API маркетплейсов. Плюс само приложение не имеет входа по паролю — кто
   открыл страницу, тот видит данные.
-- **Сервер синхронизации слушает только `127.0.0.1`**, наружу — через reverse
-  proxy. Порт `8787` в файрволе не открывать.
+- **Сервер синхронизации слушает только `127.0.0.1`** (поведение по умолчанию),
+  наружу — через reverse proxy. Порт `8787` в файрволе не открывать и `HOST`
+  не переопределять.
 - **API-ключи маркетплейсов создавать только на чтение.** Ссылки на разделы
   выдачи ключей есть в самом интерфейсе, на странице «Подключения».
 - **Ключи не должны попасть на сервер**: ни в `.env`, ни в systemd-юниты, ни в
