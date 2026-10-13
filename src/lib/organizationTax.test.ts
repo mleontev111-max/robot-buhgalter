@@ -97,3 +97,62 @@ describe('совмещение ПСН и УСН на уровне Organization',
     expect(known.notes).toEqual([])
   })
 })
+
+describe('пропорциональное распределение взносов при отсутствии выручки по патенту', () => {
+  const stores: Store[] = [
+    {
+      id: 'mp',
+      name: 'Маркетплейсы',
+      organizationId: 'org',
+      regime: 'usn6',
+      usnIncomeRate: 6,
+      insurancePremiums: 0,
+      hasEmployees: false,
+    },
+    {
+      id: 'shop',
+      name: 'Розничный магазин',
+      organizationId: 'org',
+      regime: 'psn',
+      patentPotentialIncome: 1_827_492,
+      patentCost: 109_650,
+      insurancePremiums: 0,
+      hasEmployees: false,
+    },
+  ]
+  const mpOp: Operation = {
+    id: 'o1',
+    storeId: 'mp',
+    marketplace: 'ozon',
+    date: '2026-09-30',
+    revenue: 10_862_676,
+    commission: 0,
+    logistics: 0,
+    ads: 0,
+    otherExpenses: 0,
+  }
+
+  it('предупреждает, что весь вычет ушёл на УСН, когда выручка розницы не введена', () => {
+    const s = calcOrganizationTax('org', stores, [mpOp], '2026-01-01', '2026-09-30')
+    const usn = s.lines.find((l) => l.regime === 'usn6')!
+    // фактическое поведение: весь вычет на УСН
+    expect(usn.insuranceDeduction).toBeCloseTo(s.totalInsurance, 2)
+    // и об этом сказано вслух
+    expect(s.notes.join(' ')).toContain('Пропорциональное распределение')
+    expect(s.notes.join(' ')).toContain('Розничный магазин')
+  })
+
+  it('не предупреждает, когда выручка розницы введена', () => {
+    const shopOp: Operation = { ...mpOp, id: 'o2', storeId: 'shop', revenue: 2_400_000 }
+    const s = calcOrganizationTax('org', stores, [mpOp, shopOp], '2026-01-01', '2026-09-30')
+    const usn = s.lines.find((l) => l.regime === 'usn6')!
+    expect(usn.insuranceDeduction).toBeLessThan(s.totalInsurance)
+    expect(s.notes.join(' ')).not.toContain('Пропорциональное распределение')
+  })
+
+  it('база дополнительного 1% берёт потенциальный доход патента, а не фактический', () => {
+    const s = calcOrganizationTax('org', stores, [mpOp], '2026-01-01', '2026-09-30')
+    // (10 862 676 + 1 827 492 - 300 000) x 1% + 57 390
+    expect(s.totalInsurance).toBeCloseTo(181_291.68, 2)
+  })
+})

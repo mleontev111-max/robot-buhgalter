@@ -118,6 +118,32 @@ export function calcOrganizationTax(
       ]
     : []
 
+  // Пропорциональное распределение взносов между УСН и ПСН делится по
+  // ФАКТИЧЕСКОЙ выручке каждой точки, а база дополнительного 1% считается по
+  // ПОТЕНЦИАЛЬНОМУ доходу патента. Это два разных показателя, и так и должно
+  // быть. Но если по патентной точке операции не введены, её фактическая
+  // выручка равна нулю, и «пропорциональное» распределение молча отдаёт весь
+  // вычет на УСН — то есть ведёт себя как allocation === 'usn', но под другим
+  // названием. Молчать об этом нельзя: аванс по УСН выходит заниженным, а
+  // патент при этом платится целиком.
+  if (allocation === 'proportional') {
+    const silentlyAllOnUsn = orgStores.filter(
+      (store) =>
+        store.regime === 'psn' &&
+        ((store.patentPotentialIncome ?? 0) > 0 || (store.patentCost ?? 0) > 0) &&
+        sumOps(orgOps.filter((op) => op.storeId === store.id)).revenue <= 0,
+    )
+    if (silentlyAllOnUsn.length && insurance.total > 0) {
+      orgNotes.push(
+        'Пропорциональное распределение страховых взносов невозможно посчитать: ' +
+          `по патентным точкам (${silentlyAllOnUsn.map((s) => s.name).join(', ')}) ` +
+          'не введена фактическая выручка за период, поэтому весь вычет отнесён на УСН. ' +
+          'Введите выручку розницы либо выберите распределение вручную — иначе аванс ' +
+          'по УСН занижен, а патент платится полностью.',
+      )
+    }
+  }
+
   const lines = orgStores.map((store) => {
     const storeOps = orgOps.filter((op) => op.storeId === store.id)
     const gross = grossTax(store, storeOps)
